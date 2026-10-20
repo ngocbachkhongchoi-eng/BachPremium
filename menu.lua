@@ -1,26 +1,110 @@
 --==================================================
--- BÁCH PREMIUM V11 - BẢO MẬT KEY NGHIÊM NGẶT + LOADING
+-- BÁCH PREMIUM V16 - FULL FIX + HOÀN CHỈNH
 --==================================================
 
 local Players    = game:GetService("Players")
 local UIS        = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
-local Lighting   = game:GetService("Lighting")
 local Tween      = game:GetService("TweenService")
 local Http       = game:GetService("HttpService")
+local Lighting   = game:GetService("Lighting")
+local SoundService = game:GetService("SoundService")
 
 local LP  = Players.LocalPlayer
 local Cam = workspace.CurrentCamera
 
 --========== STATE ===========
 local SpeedOn, FlyOn, AimOn = false, false, false
+local FPSOn = false
 local SpinSpeed = 0
 local SavedPos = nil
 local DEFAULT_SPEED = 16
+local DEFAULT_JUMP = 50
 local flyAngle = 0
+local SpeedValue = 100
+local FlySpeedValue = 60
+local FPSValue = 120
+
+local AimFOV = 100
+local AimFOVColor = Color3.fromRGB(255, 255, 255)
+local AimFOVVisible = false
+
+local ChamsOn, XRayOn = false, false
+local ChamsColor = Color3.fromRGB(255, 0, 0)
+
+local AntiAFKOn, NoClipOn, InfiniteJumpOn = false, false, false
+local FreezeOn = false
+local FreezeEnemiesOn = false
+local AntiCheatBypassOn = true -- LUÔN BẬT
+
+local FootStates = {
+    AutoScoreAway = false, AutoScoreHome = false,
+    AutoGKHome = false, AutoGKAway = false,
+    AutoShoot = false,
+}
+
+local ESPCache = {}
+local ChamsCache = {}
+local FrozenEnemies = {}
+
+--========== NGÔN NGỮ ===========
+local LANG = "vi"
+local T = {
+    vi = {
+        tabESP = "ESP", tabAim = "AIM", tabPerf = "FPS", tabTP = "TP",
+        tabFoot = "BÓNG", tabSys = "CÀI", tabMisc = "KHÁC",
+        espToggle = "Bật/Tắt ESP (Tổng)", espHL = "ESP Phát sáng",
+        espLine = "ESP Dây Đen Lên Trời", espName = "ESP Tên",
+        espHP = "ESP Máu", espDist = "ESP Khoảng Cách", espHitbox = "ESP Hitbox",
+        aimToggle = "Bật AimBot", aimFOV = "Aim FOV (1-500)",
+        aimFOVColor = "Màu vòng FOV", aimFOVShow = "Hiện vòng FOV",
+        fpsToggle = "Bật mở khóa FPS", fpsCustom = "FPS tùy chỉnh:",
+        speedToggle = "Bật Speed", speedValue = "Tốc độ:",
+        flyToggle = "Bật Fly", flyValue = "Tốc độ bay:",
+        spinToggle = "Bật xoay người",
+        savePos = "LƯU VỊ TRÍ", goHome = "VỀ NHÀ",
+        tpPlaceholder = "Nhập tên người chơi...", tpBtn = "BAY ĐẾN NGƯỜI CHƠI",
+        scoreAway = "Ghi bàn ĐỊCH", scoreHome = "Ghi bàn NHÀ",
+        shootToggle = "Tự động sút về lưới ĐỊCH",
+        gkHome = "Thủ môn NHÀ bay theo bóng", gkAway = "Thủ môn ĐỊCH bay theo bóng",
+        logout = "ĐĂNG XUẤT / XÓA KEY",
+        antiAFK = "Anti AFK", noClip = "No Clip (xuyên tường)", infiniteJump = "Infinite Jump",
+        chams = "Chams (nhân vật phát sáng)", xray = "X-Ray (nhìn xuyên tường)",
+        antiCheat = "Anti-Cheat Bypass (LUÔN BẬT)", freeze = "Freeze Bản Thân",
+        freezeEnemies = "Freeze Địch (đóng băng địch)",
+        langTitle = "Ngôn ngữ", langVI = "Tiếng Việt", langEN = "English",
+        freezeBtn = "FREEZE", freezeEnemyBtn = "FRZ ENEMY",
+    },
+    en = {
+        tabESP = "ESP", tabAim = "AIM", tabPerf = "FPS", tabTP = "TP",
+        tabFoot = "BALL", tabSys = "SET", tabMisc = "MISC",
+        espToggle = "ESP Toggle (Master)", espHL = "ESP Highlight",
+        espLine = "ESP Black Line to Sky", espName = "ESP Name",
+        espHP = "ESP Health", espDist = "ESP Distance", espHitbox = "ESP Hitbox",
+        aimToggle = "Enable AimBot", aimFOV = "Aim FOV (1-500)",
+        aimFOVColor = "FOV Circle Color", aimFOVShow = "Show FOV Circle",
+        fpsToggle = "Enable FPS Unlock", fpsCustom = "Custom FPS:",
+        speedToggle = "Enable Speed", speedValue = "Speed:",
+        flyToggle = "Enable Fly", flyValue = "Fly Speed:",
+        spinToggle = "Enable Spin",
+        savePos = "SAVE POSITION", goHome = "GO HOME",
+        tpPlaceholder = "Enter player name...", tpBtn = "TELEPORT TO PLAYER",
+        scoreAway = "Score AWAY", scoreHome = "Score HOME",
+        shootToggle = "Auto shoot to AWAY goal",
+        gkHome = "HOME GK dive", gkAway = "AWAY GK dive",
+        logout = "LOGOUT / DELETE KEY",
+        antiAFK = "Anti AFK", noClip = "No Clip", infiniteJump = "Infinite Jump",
+        chams = "Chams (glow players)", xray = "X-Ray (see through walls)",
+        antiCheat = "Anti-Cheat Bypass (ALWAYS ON)", freeze = "Freeze Self",
+        freezeEnemies = "Freeze Enemies",
+        langTitle = "Language", langVI = "Tiếng Việt", langEN = "English",
+        freezeBtn = "FREEZE", freezeEnemyBtn = "FRZ ENEMY",
+    },
+}
+local function L(k) return (T[LANG] and T[LANG][k]) or k end
 
 --========== KEY SYSTEM ===========
-local DBFile = "BachPremium_V11_DB.json"
+local DBFile = "BachPremium_V16_DB.json"
 local HWID = ""
 pcall(function() HWID = game:GetService("RbxAnalyticsService"):GetClientId() end)
 if not HWID or HWID == "" then HWID = tostring(LP.UserId) end
@@ -60,13 +144,74 @@ Gui.DisplayOrder = 999
 local okCore = pcall(function() Gui.Parent = game:GetService("CoreGui") end)
 if not okCore or not Gui.Parent then Gui.Parent = LP:WaitForChild("PlayerGui") end
 
+local COL = {
+    bg = Color3.fromRGB(10,10,12), panel = Color3.fromRGB(18,18,22),
+    card = Color3.fromRGB(24,24,28), cardHover = Color3.fromRGB(34,34,40),
+    stroke = Color3.fromRGB(60,60,68), text = Color3.fromRGB(240,240,245),
+    textDim = Color3.fromRGB(150,150,160), white = Color3.fromRGB(255,255,255),
+    black = Color3.fromRGB(0,0,0),
+}
+
 local function Corner(o, r) local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, r); c.Parent = o end
-local function Stroke(o, c, t) local s = Instance.new("UIStroke"); s.Color = c or Color3.fromRGB(255,200,0); s.Thickness = t or 1; s.Parent = o; return s end
-local function Grad(o)
+local function Stroke(o, c, t) local s = Instance.new("UIStroke"); s.Color = c or COL.stroke; s.Thickness = t or 1; s.Parent = o; return s end
+
+local function AnimatedGradient(parent)
     local g = Instance.new("UIGradient")
-    g.Color = ColorSequence.new({ColorSequenceKeypoint.new(0, Color3.fromRGB(255,215,70)), ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255,170,0)), ColorSequenceKeypoint.new(1, Color3.fromRGB(255,120,0))})
-    g.Rotation = 25
-    g.Parent = o
+    g.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(18,18,22)),
+        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(30,30,38)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(18,18,22)),
+    })
+    g.Rotation = 0
+    g.Parent = parent
+    task.spawn(function()
+        while g.Parent do
+            for i = 0, 360, 8 do
+                if not g.Parent then break end
+                g.Rotation = i
+                task.wait(0.05)
+            end
+        end
+    end)
+    return g
+end
+
+local function GlowStroke(parent, thickness)
+    local s = Instance.new("UIStroke")
+    s.Color = COL.white; s.Thickness = thickness or 1.5; s.Transparency = 0.5
+    s.Parent = parent
+    task.spawn(function()
+        local t = 0
+        while s.Parent do
+            t = t + 0.03
+            s.Transparency = 0.5 + math.sin(t) * 0.25
+            task.wait(0.03)
+        end
+    end)
+    return s
+end
+
+local function MakeDrag(frame, handle)
+    handle = handle or frame
+    local dragging, dragStart, startPos = false, nil, nil
+    handle.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = frame.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                end
+            end)
+        end
+    end)
+    UIS.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            local delta = input.Position - dragStart
+            frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
 end
 
 local function MakeDragAndClick(obj, handle, clickCallback)
@@ -94,74 +239,276 @@ local function MakeDragAndClick(obj, handle, clickCallback)
     end)
 end
 
---==================================================
--- MÀN HÌNH LOADING TỔNG
---==================================================
+local function CreateTick(parent, yPos, text, callback, defaultValue)
+    local row = Instance.new("TextButton")
+    row.Size = UDim2.new(1, -10, 0, 36)
+    row.Position = UDim2.fromOffset(5, yPos)
+    row.BackgroundColor3 = COL.card
+    row.Text = ""
+    row.AutoButtonColor = false
+    row.Parent = parent
+    Corner(row, 8); Stroke(row, COL.stroke, 1)
+
+    row.MouseEnter:Connect(function() Tween:Create(row, TweenInfo.new(0.15), {BackgroundColor3 = COL.cardHover}):Play() end)
+    row.MouseLeave:Connect(function() Tween:Create(row, TweenInfo.new(0.15), {BackgroundColor3 = COL.card}):Play() end)
+
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(1, -56, 1, 0)
+    lbl.Position = UDim2.fromOffset(12, 0)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = text
+    lbl.TextColor3 = COL.text
+    lbl.TextSize = 12
+    lbl.Font = Enum.Font.Gotham
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.Parent = row
+
+    local tickBox = Instance.new("Frame")
+    tickBox.Size = UDim2.fromOffset(22, 22)
+    tickBox.Position = UDim2.new(1, -32, 0.5, -11)
+    tickBox.BackgroundColor3 = Color3.fromRGB(38, 38, 44)
+    tickBox.Parent = row
+    Corner(tickBox, 5); Stroke(tickBox, COL.stroke, 1)
+
+    local tickMark = Instance.new("TextLabel")
+    tickMark.Size = UDim2.new(1, 0, 1, 0)
+    tickMark.BackgroundTransparency = 1
+    tickMark.Text = "✓"
+    tickMark.TextColor3 = COL.black
+    tickMark.TextSize = 16
+    tickMark.Font = Enum.Font.GothamBlack
+    tickMark.Visible = defaultValue or false
+    tickMark.Parent = tickBox
+
+    local state = defaultValue or false
+    local function render()
+        if state then
+            Tween:Create(tickBox, TweenInfo.new(0.12), {BackgroundColor3 = COL.white}):Play()
+            tickMark.Visible = true
+        else
+            Tween:Create(tickBox, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(38, 38, 44)}):Play()
+            tickMark.Visible = false
+        end
+    end
+
+    row.MouseButton1Click:Connect(function()
+        state = not state
+        render()
+        if callback then callback(state) end
+    end)
+
+    render()
+    local function setText(txt) lbl.Text = txt end
+    return {
+        Set = function(v) 
+            if state ~= v then
+                state = v
+                render()
+                if callback then callback(v) end
+            end
+        end,
+        Get = function() return state end,
+        SetText = setText,
+    }
+end
+
+local function CreateNumberInput(parent, yPos, label, defaultVal, minV, maxV, onChange)
+    local row = Instance.new("Frame")
+    row.Size = UDim2.new(1, -10, 0, 36)
+    row.Position = UDim2.fromOffset(5, yPos)
+    row.BackgroundColor3 = COL.card
+    row.Parent = parent
+    Corner(row, 8); Stroke(row, COL.stroke, 1)
+
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(0.5, 0, 1, 0)
+    lbl.Position = UDim2.fromOffset(12, 0)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = label
+    lbl.TextColor3 = COL.text
+    lbl.TextSize = 12
+    lbl.Font = Enum.Font.Gotham
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.Parent = row
+
+    local box = Instance.new("TextBox")
+    box.Size = UDim2.new(0.3, 0, 0, 26)
+    box.Position = UDim2.new(1, -100, 0.5, -13)
+    box.BackgroundColor3 = Color3.fromRGB(38, 38, 44)
+    box.Text = tostring(defaultVal)
+    box.TextColor3 = COL.white
+    box.TextSize = 12
+    box.Font = Enum.Font.GothamBold
+    box.ClearTextOnFocus = false
+    box.Parent = row
+    Corner(box, 6); Stroke(box, COL.stroke, 1)
+
+    local val = defaultVal
+    box.FocusLost:Connect(function()
+        local n = tonumber(box.Text)
+        if n then
+            n = math.clamp(n, minV, maxV)
+            val = n
+            box.Text = tostring(n)
+            if onChange then onChange(n) end
+        else
+            box.Text = tostring(val)
+        end
+    end)
+
+    local function setLabel(txt) lbl.Text = txt end
+    return {
+        Get = function() return val end,
+        Set = function(v) val = v; box.Text = tostring(v); if onChange then onChange(v) end end,
+        SetLabel = setLabel,
+    }
+end
+
+--========== FOV ===========
+local fovGui = Instance.new("ScreenGui")
+fovGui.Name = "BachFOV"
+fovGui.ResetOnSpawn = false
+fovGui.IgnoreGuiInset = true
+fovGui.DisplayOrder = 998
+pcall(function() fovGui.Parent = game:GetService("CoreGui") end)
+if not fovGui.Parent then fovGui.Parent = LP:WaitForChild("PlayerGui") end
+
+local fovFrame = Instance.new("Frame")
+fovFrame.Size = UDim2.fromOffset(AimFOV, AimFOV)
+fovFrame.Position = UDim2.new(0.5, -AimFOV/2, 0.5, -AimFOV/2)
+fovFrame.BackgroundTransparency = 1
+fovFrame.Visible = false
+fovFrame.Parent = fovGui
+
+local fovCorner = Instance.new("UICorner")
+fovCorner.CornerRadius = UDim.new(1, 0)
+fovCorner.Parent = fovFrame
+
+local fovStroke = Instance.new("UIStroke")
+fovStroke.Color = AimFOVColor
+fovStroke.Thickness = 2
+fovStroke.Parent = fovFrame
+
+local function UpdateFOVCircle()
+    fovFrame.Size = UDim2.fromOffset(AimFOV, AimFOV)
+    fovFrame.Position = UDim2.new(0.5, -AimFOV/2, 0.5, -AimFOV/2)
+    fovStroke.Color = AimFOVColor
+    fovFrame.Visible = AimFOVVisible
+end
+
+--========== LOADING ===========
 local StartLoadFrame = Instance.new("Frame")
-StartLoadFrame.Size = UDim2.fromOffset(400, 240)
-StartLoadFrame.Position = UDim2.new(0.5, -200, 0.5, -120)
-StartLoadFrame.BackgroundColor3 = Color3.fromRGB(15,15,18)
+StartLoadFrame.Size = UDim2.fromOffset(360, 220)
+StartLoadFrame.Position = UDim2.new(0.5, -180, 0.5, -110)
+StartLoadFrame.BackgroundColor3 = COL.bg
 StartLoadFrame.ZIndex = 100
 StartLoadFrame.Parent = Gui
-Corner(StartLoadFrame, 18); Stroke(StartLoadFrame, Color3.fromRGB(255,195,0), 2)
+Corner(StartLoadFrame, 4); GlowStroke(StartLoadFrame, 2)
+AnimatedGradient(StartLoadFrame)
 
 local StartLoadTitle = Instance.new("TextLabel")
 StartLoadTitle.Size = UDim2.new(1, 0, 0, 40)
 StartLoadTitle.Position = UDim2.fromOffset(0, 25)
 StartLoadTitle.BackgroundTransparency = 1
 StartLoadTitle.Text = "BÁCH PREMIUM"
-StartLoadTitle.TextColor3 = Color3.fromRGB(255,210,50)
-StartLoadTitle.TextSize = 27
+StartLoadTitle.TextColor3 = COL.white
+StartLoadTitle.TextSize = 24
 StartLoadTitle.Font = Enum.Font.GothamBlack
 StartLoadTitle.ZIndex = 101
 StartLoadTitle.Parent = StartLoadFrame
 
-local StartLoadText = Instance.new("TextLabel")
-StartLoadText.Size = UDim2.new(1, 0, 0, 25)
-StartLoadText.Position = UDim2.fromOffset(0, 70)
-StartLoadText.BackgroundTransparency = 1
-StartLoadText.Text = "Đang tải hệ thống..."
-StartLoadText.TextColor3 = Color3.fromRGB(170,170,175)
-StartLoadText.TextSize = 14
-StartLoadText.Font = Enum.Font.Gotham
-StartLoadText.ZIndex = 101
-StartLoadText.Parent = StartLoadFrame
-
 local StartBarBack = Instance.new("Frame")
-StartBarBack.Size = UDim2.new(1, -50, 0, 20)
-StartBarBack.Position = UDim2.fromOffset(25, 115)
-StartBarBack.BackgroundColor3 = Color3.fromRGB(35,35,40)
+StartBarBack.Size = UDim2.new(1, -50, 0, 6)
+StartBarBack.Position = UDim2.fromOffset(25, 125)
+StartBarBack.BackgroundColor3 = Color3.fromRGB(30, 30, 36)
 StartBarBack.ZIndex = 101
 StartBarBack.Parent = StartLoadFrame
-Corner(StartBarBack, 10)
+Corner(StartBarBack, 3)
 
 local StartBar = Instance.new("Frame")
 StartBar.Size = UDim2.new(0, 0, 1, 0)
-StartBar.BackgroundColor3 = Color3.fromRGB(255,190,0)
+StartBar.BackgroundColor3 = COL.white
 StartBar.ZIndex = 102
 StartBar.Parent = StartBarBack
-Corner(StartBar, 10); Grad(StartBar)
+Corner(StartBar, 3)
 
 local StartPercent = Instance.new("TextLabel")
 StartPercent.Size = UDim2.new(1, 0, 0, 25)
-StartPercent.Position = UDim2.fromOffset(0, 155)
+StartPercent.Position = UDim2.fromOffset(0, 145)
 StartPercent.BackgroundTransparency = 1
 StartPercent.Text = "0%"
-StartPercent.TextColor3 = Color3.fromRGB(255,255,255)
-StartPercent.TextSize = 15
+StartPercent.TextColor3 = COL.white
+StartPercent.TextSize = 14
 StartPercent.Font = Enum.Font.GothamBold
 StartPercent.ZIndex = 101
 StartPercent.Parent = StartLoadFrame
 
--- CHẠY LOADING TỔNG XONG MỚI HIỆN KEY
+--========== KEY FRAME ===========
+local KeyFrame = Instance.new("Frame")
+KeyFrame.Size = UDim2.fromOffset(360, 290)
+KeyFrame.Position = UDim2.new(0.5, -180, 0.5, -145)
+KeyFrame.BackgroundColor3 = COL.bg
+KeyFrame.ZIndex = 50
+KeyFrame.Visible = false
+KeyFrame.Parent = Gui
+Corner(KeyFrame, 4); GlowStroke(KeyFrame, 2)
+AnimatedGradient(KeyFrame)
+
+local KeyTitle = Instance.new("TextLabel")
+KeyTitle.Size = UDim2.new(1, -30, 0, 35)
+KeyTitle.Position = UDim2.fromOffset(15, 15)
+KeyTitle.BackgroundTransparency = 1
+KeyTitle.Text = "BÁCH PREMIUM V16"
+KeyTitle.TextColor3 = COL.white
+KeyTitle.TextSize = 22
+KeyTitle.Font = Enum.Font.GothamBlack
+KeyTitle.TextXAlignment = Enum.TextXAlignment.Left
+KeyTitle.ZIndex = 52
+KeyTitle.Parent = KeyFrame
+
+local KeyBox = Instance.new("TextBox")
+KeyBox.Size = UDim2.new(1, -40, 0, 44)
+KeyBox.Position = UDim2.fromOffset(20, 70)
+KeyBox.BackgroundColor3 = COL.card
+KeyBox.TextColor3 = COL.white
+KeyBox.PlaceholderColor3 = COL.textDim
+KeyBox.PlaceholderText = "BACH-XXX-XXXXXX-XXXXXX"
+KeyBox.Text = ""
+KeyBox.TextSize = 14
+KeyBox.Font = Enum.Font.Code
+KeyBox.ClearTextOnFocus = false
+KeyBox.ZIndex = 52
+KeyBox.Parent = KeyFrame
+Corner(KeyBox, 6); Stroke(KeyBox, COL.stroke, 1)
+
+local CheckBtn = Instance.new("TextButton")
+CheckBtn.Size = UDim2.new(1, -40, 0, 44)
+CheckBtn.Position = UDim2.fromOffset(20, 125)
+CheckBtn.BackgroundColor3 = COL.white
+CheckBtn.Text = "CHECK KEY"
+CheckBtn.TextColor3 = COL.black
+CheckBtn.TextSize = 14
+CheckBtn.Font = Enum.Font.GothamBold
+CheckBtn.ZIndex = 52
+CheckBtn.Parent = KeyFrame
+Corner(CheckBtn, 6)
+
+local KeyStatus = Instance.new("TextLabel")
+KeyStatus.Size = UDim2.new(1, -40, 0, 90)
+KeyStatus.Position = UDim2.fromOffset(20, 180)
+KeyStatus.BackgroundTransparency = 1
+KeyStatus.Text = ""
+KeyStatus.TextColor3 = COL.textDim
+KeyStatus.TextSize = 11
+KeyStatus.Font = Enum.Font.GothamBold
+KeyStatus.TextWrapped = true
+KeyStatus.ZIndex = 52
+KeyStatus.Parent = KeyFrame
+
 task.spawn(function()
     for i = 1, 100 do
         StartBar.Size = UDim2.new(i/100, 0, 1, 0)
         StartPercent.Text = i .. "%"
-        if i == 30 then StartLoadText.Text = "Đang kết nối bảo mật..."
-        elseif i == 60 then StartLoadText.Text = "Đang tải giao diện..."
-        elseif i == 90 then StartLoadText.Text = "Hoàn tất!"
-        end
         task.wait(0.01)
     end
     task.wait(0.3)
@@ -169,158 +516,28 @@ task.spawn(function()
     KeyFrame.Visible = true
 end)
 
---==================================================
--- 1. KEY FRAME
---==================================================
-local KeyFrame = Instance.new("Frame")
-KeyFrame.Size = UDim2.fromOffset(400, 310)
-KeyFrame.Position = UDim2.new(0.5, -200, 0.5, -155)
-KeyFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 18)
-KeyFrame.ZIndex = 50
-KeyFrame.Visible = false
-KeyFrame.Parent = Gui
-Corner(KeyFrame, 18); Stroke(KeyFrame, Color3.fromRGB(255,195,0), 2)
-
-local KeyTop = Instance.new("Frame")
-KeyTop.Size = UDim2.new(1, 0, 0, 75)
-KeyTop.BackgroundColor3 = Color3.fromRGB(25, 25, 28)
-KeyTop.BorderSizePixel = 0
-KeyTop.ZIndex = 51
-KeyTop.Parent = KeyFrame
-Corner(KeyTop, 18)
-
-local KeyTitle = Instance.new("TextLabel")
-KeyTitle.Size = UDim2.new(1, -30, 0, 35)
-KeyTitle.Position = UDim2.fromOffset(15, 10)
-KeyTitle.BackgroundTransparency = 1
-KeyTitle.Text = "BÁCH PREMIUM V11"
-KeyTitle.TextColor3 = Color3.fromRGB(255,210,50)
-KeyTitle.TextSize = 24
-KeyTitle.Font = Enum.Font.GothamBlack
-KeyTitle.ZIndex = 52
-KeyTitle.Parent = KeyTop
-
-local KeyBox = Instance.new("TextBox")
-KeyBox.Size = UDim2.new(1, -40, 0, 48)
-KeyBox.Position = UDim2.fromOffset(20, 95)
-KeyBox.BackgroundColor3 = Color3.fromRGB(28,28,32)
-KeyBox.TextColor3 = Color3.fromRGB(255,255,255)
-KeyBox.PlaceholderColor3 = Color3.fromRGB(100,100,105)
-KeyBox.PlaceholderText = "Nhập Key (VD: BACH-VIP-...)"
-KeyBox.Text = ""
-KeyBox.TextSize = 16
-KeyBox.Font = Enum.Font.GothamMedium
-KeyBox.ClearTextOnFocus = false
-KeyBox.ZIndex = 52
-KeyBox.Parent = KeyFrame
-Corner(KeyBox, 12); Stroke(KeyBox, Color3.fromRGB(65,65,70), 1)
-
-local CheckBtn = Instance.new("TextButton")
-CheckBtn.Size = UDim2.new(1, -40, 0, 48)
-CheckBtn.Position = UDim2.fromOffset(20, 153)
-CheckBtn.BackgroundColor3 = Color3.fromRGB(255,190,0)
-CheckBtn.Text = "CHECK KEY"
-CheckBtn.TextColor3 = Color3.fromRGB(10,10,10)
-CheckBtn.TextSize = 15
-CheckBtn.Font = Enum.Font.GothamBold
-CheckBtn.ZIndex = 52
-CheckBtn.Parent = KeyFrame
-Corner(CheckBtn, 12); Grad(CheckBtn)
-
-local KeyStatus = Instance.new("TextLabel")
-KeyStatus.Size = UDim2.new(1, -40, 0, 60)
-KeyStatus.Position = UDim2.fromOffset(20, 215)
-KeyStatus.BackgroundTransparency = 1
-KeyStatus.Text = ""
-KeyStatus.TextColor3 = Color3.fromRGB(255,220,0)
-KeyStatus.TextSize = 12
-KeyStatus.Font = Enum.Font.GothamBold
-KeyStatus.TextWrapped = true
-KeyStatus.ZIndex = 52
-KeyStatus.Parent = KeyFrame
-
--- LOADING NHẬP KEY
-local LoadFrame = Instance.new("Frame")
-LoadFrame.Size = UDim2.fromOffset(400, 240)
-LoadFrame.Position = UDim2.new(0.5, -200, 0.5, -120)
-LoadFrame.BackgroundColor3 = Color3.fromRGB(15,15,18)
-LoadFrame.Visible = false
-LoadFrame.ZIndex = 40
-LoadFrame.Parent = Gui
-Corner(LoadFrame, 18); Stroke(LoadFrame, Color3.fromRGB(255,195,0), 2)
-
-local LoadTitle = Instance.new("TextLabel")
-LoadTitle.Size = UDim2.new(1, 0, 0, 40)
-LoadTitle.Position = UDim2.fromOffset(0, 25)
-LoadTitle.BackgroundTransparency = 1
-LoadTitle.Text = "BÁCH PREMIUM"
-LoadTitle.TextColor3 = Color3.fromRGB(255,210,50)
-LoadTitle.TextSize = 27
-LoadTitle.Font = Enum.Font.GothamBlack
-LoadTitle.ZIndex = 41
-LoadTitle.Parent = LoadFrame
-
-local LoadText = Instance.new("TextLabel")
-LoadText.Size = UDim2.new(1, 0, 0, 25)
-LoadText.Position = UDim2.fromOffset(0, 70)
-LoadText.BackgroundTransparency = 1
-LoadText.Text = "Đang khởi tạo..."
-LoadText.TextColor3 = Color3.fromRGB(170,170,175)
-LoadText.TextSize = 14
-LoadText.Font = Enum.Font.Gotham
-LoadText.ZIndex = 41
-LoadText.Parent = LoadFrame
-
-local BarBack = Instance.new("Frame")
-BarBack.Size = UDim2.new(1, -50, 0, 20)
-BarBack.Position = UDim2.fromOffset(25, 115)
-BarBack.BackgroundColor3 = Color3.fromRGB(35,35,40)
-BarBack.ZIndex = 41
-BarBack.Parent = LoadFrame
-Corner(BarBack, 10)
-
-local Bar = Instance.new("Frame")
-Bar.Size = UDim2.new(0, 0, 1, 0)
-Bar.BackgroundColor3 = Color3.fromRGB(255,190,0)
-Bar.ZIndex = 42
-Bar.Parent = BarBack
-Corner(Bar, 10); Grad(Bar)
-
-local Percent = Instance.new("TextLabel")
-Percent.Size = UDim2.new(1, 0, 0, 25)
-Percent.Position = UDim2.fromOffset(0, 155)
-Percent.BackgroundTransparency = 1
-Percent.Text = "0%"
-Percent.TextColor3 = Color3.fromRGB(255,255,255)
-Percent.TextSize = 15
-Percent.Font = Enum.Font.GothamBold
-Percent.ZIndex = 41
-Percent.Parent = LoadFrame
-
---==================================================
--- 2. MAIN GUI
---==================================================
+--========== MAIN GUI ===========
 local Main = Instance.new("Frame")
-Main.Size = UDim2.fromOffset(400, 600)
-Main.Position = UDim2.new(0.5, -200, 0.5, -300)
-Main.BackgroundColor3 = Color3.fromRGB(14,14,17)
+Main.Size = UDim2.fromOffset(420, 620)
+Main.Position = UDim2.new(0.5, -210, 0.5, -310)
+Main.BackgroundColor3 = COL.bg
 Main.Visible = false
 Main.Parent = Gui
-Corner(Main, 20); Stroke(Main, Color3.fromRGB(255,195,0), 2)
+Corner(Main, 4); GlowStroke(Main, 2)
+AnimatedGradient(Main)
 
--- NÚT B
 local OpenBtn = Instance.new("TextButton")
-OpenBtn.Size = UDim2.fromOffset(60, 60)
-OpenBtn.Position = UDim2.new(0, 20, 0.5, -30)
-OpenBtn.BackgroundColor3 = Color3.fromRGB(255,190,0)
+OpenBtn.Size = UDim2.fromOffset(56, 56)
+OpenBtn.Position = UDim2.new(0, 20, 0.5, -28)
+OpenBtn.BackgroundColor3 = COL.white
 OpenBtn.Text = "B"
-OpenBtn.TextColor3 = Color3.fromRGB(10,10,10)
-OpenBtn.TextSize = 30
+OpenBtn.TextColor3 = COL.black
+OpenBtn.TextSize = 26
 OpenBtn.Font = Enum.Font.GothamBlack
 OpenBtn.Visible = false
 OpenBtn.ZIndex = 200
 OpenBtn.Parent = Gui
-Corner(OpenBtn, 100); Stroke(OpenBtn, Color3.fromRGB(255,230,100), 3); Grad(OpenBtn)
+Corner(OpenBtn, 4); GlowStroke(OpenBtn, 2)
 
 MakeDragAndClick(OpenBtn, OpenBtn, function()
     Main.Visible = true
@@ -328,76 +545,69 @@ MakeDragAndClick(OpenBtn, OpenBtn, function()
 end)
 
 local Header = Instance.new("Frame")
-Header.Size = UDim2.new(1, 0, 0, 50)
-Header.BackgroundColor3 = Color3.fromRGB(25,25,29)
+Header.Size = UDim2.new(1, 0, 0, 48)
+Header.BackgroundColor3 = COL.panel
 Header.Parent = Main
-Corner(Header, 20)
+Corner(Header, 4)
+MakeDrag(Main, Header)
 
 local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(1, -60, 0, 50)
-Title.Position = UDim2.fromOffset(20, 0)
+Title.Size = UDim2.new(1, -60, 0, 48)
+Title.Position = UDim2.fromOffset(16, 0)
 Title.BackgroundTransparency = 1
 Title.Text = "BÁCH PREMIUM"
-Title.TextColor3 = Color3.fromRGB(255,210,50)
-Title.TextSize = 20
+Title.TextColor3 = COL.white
+Title.TextSize = 18
 Title.Font = Enum.Font.GothamBlack
 Title.TextXAlignment = Enum.TextXAlignment.Left
 Title.Parent = Header
 
 local CloseBtn = Instance.new("TextButton")
-CloseBtn.Size = UDim2.fromOffset(40, 40)
-CloseBtn.Position = UDim2.new(1, -50, 0, 5)
-CloseBtn.BackgroundColor3 = Color3.fromRGB(40,40,45)
+CloseBtn.Size = UDim2.fromOffset(36, 36)
+CloseBtn.Position = UDim2.new(1, -44, 0, 6)
+CloseBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 52)
 CloseBtn.Text = "X"
-CloseBtn.TextColor3 = Color3.fromRGB(255,255,255)
-CloseBtn.TextSize = 18
+CloseBtn.TextColor3 = COL.white
+CloseBtn.TextSize = 16
 CloseBtn.Parent = Header
-Corner(CloseBtn, 10)
-CloseBtn.MouseButton1Click:Connect(function() 
-    Main.Visible = false 
-    OpenBtn.Visible = true
-end)
+Corner(CloseBtn, 4)
+CloseBtn.MouseButton1Click:Connect(function() Main.Visible = false; OpenBtn.Visible = true end)
 
--- TABS
 local TabBox = Instance.new("Frame")
-TabBox.Size = UDim2.new(1, -20, 0, 40)
-TabBox.Position = UDim2.fromOffset(10, 60)
-TabBox.BackgroundColor3 = Color3.fromRGB(20,20,24)
+TabBox.Size = UDim2.new(1, -16, 0, 36)
+TabBox.Position = UDim2.fromOffset(8, 56)
+TabBox.BackgroundColor3 = COL.panel
 TabBox.Parent = Main
-Corner(TabBox, 10)
-
-local TabRow = Instance.new("Frame")
-TabRow.Size = UDim2.new(1, 0, 1, 0)
-TabRow.BackgroundTransparency = 1
-TabRow.Parent = TabBox
+Corner(TabBox, 4)
 
 local tabBtns = {}
 local function CreateTab(name, xOffset, width)
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(0, width, 1, 0)
     btn.Position = UDim2.fromOffset(xOffset, 0)
-    btn.BackgroundColor3 = Color3.fromRGB(45,45,50)
+    btn.BackgroundColor3 = Color3.fromRGB(36, 36, 42)
     btn.Text = name
-    btn.TextColor3 = Color3.fromRGB(200,200,205)
-    btn.TextSize = 11
+    btn.TextColor3 = COL.textDim
+    btn.TextSize = 10
     btn.Font = Enum.Font.GothamBold
-    btn.Parent = TabRow
-    Corner(btn, 8)
+    btn.AutoButtonColor = false
+    btn.Parent = TabBox
+    Corner(btn, 4)
     table.insert(tabBtns, btn)
     return btn
 end
 
-local TabESP = CreateTab("ESP", 2, 50)
-local TabAim = CreateTab("AIM", 54, 50)
-local TabPerf = CreateTab("TỐI ƯU", 106, 65)
-local TabTP = CreateTab("D.CHUYỂN", 173, 70)
-local TabFoot = CreateTab("BÓNG ĐÁ", 245, 70)
-local TabSys = CreateTab("CÀI ĐẶT", 317, 75)
+local TabESP = CreateTab("ESP", 2, 56)
+local TabAim = CreateTab("AIM", 60, 56)
+local TabPerf = CreateTab("FPS", 118, 60)
+local TabTP = CreateTab("TP", 180, 50)
+local TabFoot = CreateTab("BÓNG", 232, 66)
+local TabSys = CreateTab("CÀI", 300, 60)
+local TabMisc = CreateTab("KHÁC", 362, 50)
 
--- CONTAINER
 local PageHolder = Instance.new("Frame")
-PageHolder.Size = UDim2.new(1, -20, 0, 480)
-PageHolder.Position = UDim2.fromOffset(10, 110)
+PageHolder.Size = UDim2.new(1, -16, 0, 510)
+PageHolder.Position = UDim2.fromOffset(8, 100)
 PageHolder.BackgroundTransparency = 1
 PageHolder.Parent = Main
 PageHolder.ClipsDescendants = true
@@ -417,22 +627,24 @@ local PagePerf = CreatePage()
 local PageTP = CreatePage()
 local PageFoot = CreatePage()
 local PageSys = CreatePage()
+local PageMisc = CreatePage()
 
-local allPages = {PageESP, PageAim, PagePerf, PageTP, PageFoot, PageSys}
+local allPages = {PageESP, PageAim, PagePerf, PageTP, PageFoot, PageSys, PageMisc}
 local function SetTab(activeBtn)
     for _, b in ipairs(tabBtns) do
-        b.BackgroundColor3 = Color3.fromRGB(45,45,50)
-        b.TextColor3 = Color3.fromRGB(200,200,205)
+        b.BackgroundColor3 = Color3.fromRGB(36, 36, 42)
+        b.TextColor3 = COL.textDim
     end
-    activeBtn.BackgroundColor3 = Color3.fromRGB(255,190,0)
-    activeBtn.TextColor3 = Color3.fromRGB(10,10,10)
+    activeBtn.BackgroundColor3 = COL.white
+    activeBtn.TextColor3 = COL.black
     for _, p in ipairs(allPages) do p.Visible = false end
     if activeBtn == TabESP then PageESP.Visible = true
     elseif activeBtn == TabAim then PageAim.Visible = true
     elseif activeBtn == TabPerf then PagePerf.Visible = true
     elseif activeBtn == TabTP then PageTP.Visible = true
     elseif activeBtn == TabFoot then PageFoot.Visible = true
-    elseif activeBtn == TabSys then PageSys.Visible = true end
+    elseif activeBtn == TabSys then PageSys.Visible = true
+    elseif activeBtn == TabMisc then PageMisc.Visible = true end
 end
 
 TabESP.MouseButton1Click:Connect(function() SetTab(TabESP) end)
@@ -441,361 +653,267 @@ TabPerf.MouseButton1Click:Connect(function() SetTab(TabPerf) end)
 TabTP.MouseButton1Click:Connect(function() SetTab(TabTP) end)
 TabFoot.MouseButton1Click:Connect(function() SetTab(TabFoot) end)
 TabSys.MouseButton1Click:Connect(function() SetTab(TabSys) end)
+TabMisc.MouseButton1Click:Connect(function() SetTab(TabMisc) end)
 
---==================================================
--- 3. TAB ESP
---==================================================
-local ESP = {Player=false, HL=false, Line=false, Name=false, HP=false, Dist=false}
-local function CreateToggle(parent, yPos, key, text)
-    local row = Instance.new("TextButton")
-    row.Size = UDim2.new(1, -10, 0, 36)
-    row.Position = UDim2.fromOffset(5, yPos)
-    row.BackgroundColor3 = Color3.fromRGB(23,23,27)
-    row.Text = ""
-    row.Parent = parent
-    Corner(row, 10); Stroke(row, Color3.fromRGB(50,50,55), 1)
+--========== TAB ESP ===========
+local ESP = {Player=false, HL=false, Line=false, Name=false, HP=false, Dist=false, Hitbox=false}
 
-    local lbl = Instance.new("TextLabel")
-    lbl.Size = UDim2.new(1, -60, 1, 0)
-    lbl.Position = UDim2.fromOffset(14, 0)
-    lbl.BackgroundTransparency = 1
-    lbl.Text = text
-    lbl.TextColor3 = Color3.fromRGB(235,235,235)
-    lbl.TextSize = 13
-    lbl.Font = Enum.Font.Gotham
-    lbl.TextXAlignment = Enum.TextXAlignment.Left
-    lbl.Parent = row
+local espTickRefs = {}
+espTickRefs.espToggle = CreateTick(PageESP, 0, L("espToggle"), function(v) ESP.Player = v end)
+espTickRefs.espHL = CreateTick(PageESP, 38, L("espHL"), function(v) ESP.HL = v end)
+espTickRefs.espLine = CreateTick(PageESP, 76, L("espLine"), function(v) ESP.Line = v end)
+espTickRefs.espName = CreateTick(PageESP, 114, L("espName"), function(v) ESP.Name = v end)
+espTickRefs.espHP = CreateTick(PageESP, 152, L("espHP"), function(v) ESP.HP = v end)
+espTickRefs.espDist = CreateTick(PageESP, 190, L("espDist"), function(v) ESP.Dist = v end)
+espTickRefs.espHitbox = CreateTick(PageESP, 228, L("espHitbox"), function(v) ESP.Hitbox = v end)
 
-    local box = Instance.new("Frame")
-    box.Size = UDim2.fromOffset(40, 22)
-    box.Position = UDim2.new(1, -50, 0.5, -11)
-    box.BackgroundColor3 = Color3.fromRGB(42,42,47)
-    box.Parent = row
-    Corner(box, 11); Stroke(box, Color3.fromRGB(70,70,75), 1)
-
-    local dot = Instance.new("Frame")
-    dot.Size = UDim2.fromOffset(16, 16)
-    dot.Position = UDim2.fromOffset(3, 3)
-    dot.BackgroundColor3 = Color3.fromRGB(180,180,185)
-    dot.Parent = box
-    Corner(dot, 8)
-
-    row.MouseButton1Click:Connect(function()
-        ESP[key] = not ESP[key]
-        if ESP[key] then
-            Tween:Create(box, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(255,195,0)}):Play()
-            Tween:Create(dot, TweenInfo.new(0.15), {Position = UDim2.fromOffset(21, 3), BackgroundColor3 = Color3.fromRGB(255,255,255)}):Play()
-        else
-            Tween:Create(box, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(42,42,47)}):Play()
-            Tween:Create(dot, TweenInfo.new(0.15), {Position = UDim2.fromOffset(3, 3), BackgroundColor3 = Color3.fromRGB(180,180,185)}):Play()
-        end
-    end)
-end
-
-CreateToggle(PageESP, 0, "Player", "Bật/Tắt ESP")
-CreateToggle(PageESP, 42, "HL", "ESP Phát sáng")
-CreateToggle(PageESP, 84, "Line", "ESP Dây")
-CreateToggle(PageESP, 126, "Name", "ESP Tên")
-CreateToggle(PageESP, 168, "HP", "ESP Máu")
-CreateToggle(PageESP, 210, "Dist", "ESP KC")
-
---==================================================
--- 4. TAB AIM
---==================================================
-local AimCard = Instance.new("Frame")
-AimCard.Size = UDim2.new(1, -10, 0, 120)
-AimCard.Position = UDim2.fromOffset(5, 0)
-AimCard.BackgroundColor3 = Color3.fromRGB(23,23,27)
-AimCard.Parent = PageAim
-Corner(AimCard, 14); Stroke(AimCard, Color3.fromRGB(50,50,55), 1)
-
-local AimTitle = Instance.new("TextLabel")
-AimTitle.Size = UDim2.new(1, -20, 0, 25)
-AimTitle.Position = UDim2.fromOffset(12, 10)
-AimTitle.BackgroundTransparency = 1
-AimTitle.Text = "FULL AIMBOT"
-AimTitle.TextColor3 = Color3.fromRGB(245,245,245)
-AimTitle.Font = Enum.Font.GothamBold
-AimTitle.TextXAlignment = Enum.TextXAlignment.Left
-AimTitle.Parent = AimCard
-
-local AimBtn = Instance.new("TextButton")
-AimBtn.Size = UDim2.new(1, -24, 0, 45)
-AimBtn.Position = UDim2.fromOffset(12, 45)
-AimBtn.BackgroundColor3 = Color3.fromRGB(42,42,47)
-AimBtn.Text = "AIMBOT: OFF"
-AimBtn.TextColor3 = Color3.fromRGB(150,150,155)
-AimBtn.Font = Enum.Font.GothamBold
-AimBtn.Parent = AimCard
-Corner(AimBtn, 10)
-
-AimBtn.MouseButton1Click:Connect(function()
-    AimOn = not AimOn
-    AimBtn.Text = AimOn and "AIMBOT: ON" or "AIMBOT: OFF"
-    AimBtn.BackgroundColor3 = AimOn and Color3.fromRGB(255,195,0) or Color3.fromRGB(42,42,47)
-    AimBtn.TextColor3 = AimOn and Color3.fromRGB(10,10,10) or Color3.fromRGB(150,150,155)
+--========== TAB AIM ===========
+local aimTickRefs = {}
+aimTickRefs.aimToggle = CreateTick(PageAim, 0, L("aimToggle"), function(v) AimOn = v end)
+aimTickRefs.aimFOVShow = CreateTick(PageAim, 38, L("aimFOVShow"), function(v)
+    AimFOVVisible = v
+    UpdateFOVCircle()
 end)
 
---==================================================
--- 5. TAB TỐI ƯU (FPS + FOV)
---==================================================
-local FPSCard = Instance.new("Frame")
-FPSCard.Size = UDim2.new(1, -10, 0, 90)
-FPSCard.Position = UDim2.fromOffset(5, 0)
-FPSCard.BackgroundColor3 = Color3.fromRGB(23,23,27)
-FPSCard.Parent = PagePerf
-Corner(FPSCard, 14); Stroke(FPSCard, Color3.fromRGB(50,50,55), 1)
+local aimFOVInput = CreateNumberInput(PageAim, 76, L("aimFOV"), 100, 1, 500, function(n)
+    AimFOV = n
+    UpdateFOVCircle()
+end)
 
-local FPSTitle = Instance.new("TextLabel")
-FPSTitle.Size = UDim2.new(1, -20, 0, 25)
-FPSTitle.Position = UDim2.fromOffset(12, 10)
-FPSTitle.BackgroundTransparency = 1
-FPSTitle.Text = "MỞ KHÓA FPS"
-FPSTitle.TextColor3 = Color3.fromRGB(245,245,245)
-FPSTitle.Font = Enum.Font.GothamBold
-FPSTitle.TextXAlignment = Enum.TextXAlignment.Left
-FPSTitle.Parent = FPSCard
+local colorRow = Instance.new("Frame")
+colorRow.Size = UDim2.new(1, -10, 0, 36)
+colorRow.Position = UDim2.fromOffset(5, 116)
+colorRow.BackgroundColor3 = COL.card
+colorRow.Parent = PageAim
+Corner(colorRow, 8); Stroke(colorRow, COL.stroke, 1)
 
-local function FPSBtn(txt, x, val)
+local colorLbl = Instance.new("TextLabel")
+colorLbl.Size = UDim2.new(0.5, 0, 1, 0)
+colorLbl.Position = UDim2.fromOffset(12, 0)
+colorLbl.BackgroundTransparency = 1
+colorLbl.Text = L("aimFOVColor")
+colorLbl.TextColor3 = COL.text
+colorLbl.TextSize = 12
+colorLbl.Font = Enum.Font.Gotham
+colorLbl.TextXAlignment = Enum.TextXAlignment.Left
+colorLbl.Parent = colorRow
+
+local colors = {
+    {Color3.fromRGB(255,255,255), 0},
+    {Color3.fromRGB(255,0,0), 40},
+    {Color3.fromRGB(0,255,0), 80},
+    {Color3.fromRGB(0,150,255), 120},
+    {Color3.fromRGB(255,0,255), 160},
+    {Color3.fromRGB(255,255,0), 200},
+}
+for _, c in ipairs(colors) do
+    local cb = Instance.new("TextButton")
+    cb.Size = UDim2.fromOffset(28, 28)
+    cb.Position = UDim2.new(0.5, 12 + c[2], 0.5, -14)
+    cb.BackgroundColor3 = c[1]
+    cb.Text = ""
+    cb.Parent = colorRow
+    Corner(cb, 14); Stroke(cb, COL.stroke, 1)
+    cb.MouseButton1Click:Connect(function()
+        AimFOVColor = c[1]
+        UpdateFOVCircle()
+    end)
+end
+
+--========== TAB FPS ===========
+local fpsTickRefs = {}
+fpsTickRefs.fpsToggle = CreateTick(PagePerf, 0, L("fpsToggle"), function(v)
+    FPSOn = v
+    if v then pcall(function() setfpscap(FPSValue) end)
+    else pcall(function() setfpscap(60) end) end
+end)
+local fpsInput = CreateNumberInput(PagePerf, 40, L("fpsCustom"), 120, 30, 360, function(n)
+    FPSValue = n
+    if FPSOn then pcall(function() setfpscap(n) end) end
+end)
+
+local function FPSBtn(txt, x, y, val)
     local b = Instance.new("TextButton")
     b.Size = UDim2.new(0.3, 0, 0, 30)
-    b.Position = UDim2.fromOffset(x, 45)
-    b.BackgroundColor3 = Color3.fromRGB(42,42,47)
-    b.Text = txt
-    b.TextColor3 = Color3.fromRGB(200,200,205)
-    b.Font = Enum.Font.GothamBold
-    b.Parent = FPSCard
-    Corner(b, 8)
-    b.MouseButton1Click:Connect(function()
-        for _, c in ipairs(FPSCard:GetChildren()) do
-            if c:IsA("TextButton") then
-                c.BackgroundColor3 = Color3.fromRGB(42,42,47)
-                c.TextColor3 = Color3.fromRGB(200,200,205)
-            end
-        end
-        b.BackgroundColor3 = Color3.fromRGB(255,195,0)
-        b.TextColor3 = Color3.fromRGB(10,10,10)
-        pcall(function() setfpscap(val) end)
-    end)
-end
-FPSBtn("20 Hz", 10, 20)
-FPSBtn("60 Hz", 130, 60)
-FPSBtn("120 Hz", 250, 120)
-
-local FOVCard = Instance.new("Frame")
-FOVCard.Size = UDim2.new(1, -10, 0, 130)
-FOVCard.Position = UDim2.fromOffset(5, 100)
-FOVCard.BackgroundColor3 = Color3.fromRGB(23,23,27)
-FOVCard.Parent = PagePerf
-Corner(FOVCard, 14); Stroke(FOVCard, Color3.fromRGB(50,50,55), 1)
-
-local FOVTitle = Instance.new("TextLabel")
-FOVTitle.Size = UDim2.new(1, -20, 0, 25)
-FOVTitle.Position = UDim2.fromOffset(12, 10)
-FOVTitle.BackgroundTransparency = 1
-FOVTitle.Text = "MỞ RỘNG CAMERA"
-FOVTitle.TextColor3 = Color3.fromRGB(245,245,245)
-FOVTitle.Font = Enum.Font.GothamBold
-FOVTitle.TextXAlignment = Enum.TextXAlignment.Left
-FOVTitle.Parent = FOVCard
-
-local function FOVBtn(txt, x, y, val)
-    local b = Instance.new("TextButton")
-    b.Size = UDim2.new(0.45, 0, 0, 30)
     b.Position = UDim2.fromOffset(x, y)
-    b.BackgroundColor3 = Color3.fromRGB(42,42,47)
+    b.BackgroundColor3 = Color3.fromRGB(36, 36, 42)
     b.Text = txt
-    b.TextColor3 = Color3.fromRGB(200,200,205)
+    b.TextColor3 = COL.textDim
     b.Font = Enum.Font.GothamBold
-    b.Parent = FOVCard
-    Corner(b, 8)
+    b.Parent = PagePerf
+    Corner(b, 4)
     b.MouseButton1Click:Connect(function()
-        for _, c in ipairs(FOVCard:GetChildren()) do
-            if c:IsA("TextButton") then
-                c.BackgroundColor3 = Color3.fromRGB(42,42,47)
-                c.TextColor3 = Color3.fromRGB(200,200,205)
-            end
-        end
-        b.BackgroundColor3 = Color3.fromRGB(255,195,0)
-        b.TextColor3 = Color3.fromRGB(10,10,10)
-        pcall(function() Cam.FieldOfView = val end)
+        FPSValue = val
+        pcall(function() setfpscap(val) end)
+        b.BackgroundColor3 = COL.white
+        b.TextColor3 = COL.black
     end)
 end
-FOVBtn("Bình thường", 10, 45, 70)
-FOVBtn("Xa", 215, 45, 100)
-FOVBtn("Rộng", 10, 85, 120)
-FOVBtn("Siêu Xa", 215, 85, 150)
+FPSBtn("30", 10, 85, 30)
+FPSBtn("60", 130, 85, 60)
+FPSBtn("120", 250, 85, 120)
+FPSBtn("240", 10, 120, 240)
+FPSBtn("360", 130, 120, 360)
 
---==================================================
--- 6. TAB DỊCH CHUYỂN
---==================================================
+--========== TAB TP ===========
 local SaveBtn = Instance.new("TextButton")
-SaveBtn.Size = UDim2.new(0.5, -10, 0, 40)
+SaveBtn.Size = UDim2.new(0.5, -10, 0, 38)
 SaveBtn.Position = UDim2.fromOffset(5, 0)
-SaveBtn.BackgroundColor3 = Color3.fromRGB(42,42,47)
-SaveBtn.Text = "LƯU VỊ TRÍ"
-SaveBtn.TextColor3 = Color3.fromRGB(200,200,205)
+SaveBtn.BackgroundColor3 = Color3.fromRGB(36, 36, 42)
+SaveBtn.Text = L("savePos")
+SaveBtn.TextColor3 = COL.text
 SaveBtn.Font = Enum.Font.GothamBold
 SaveBtn.Parent = PageTP
-Corner(SaveBtn, 10)
+Corner(SaveBtn, 4)
 
 local HomeBtn = Instance.new("TextButton")
-HomeBtn.Size = UDim2.new(0.5, -10, 0, 40)
+HomeBtn.Size = UDim2.new(0.5, -10, 0, 38)
 HomeBtn.Position = UDim2.new(0.5, 5, 0, 0)
-HomeBtn.BackgroundColor3 = Color3.fromRGB(255,190,0)
-HomeBtn.Text = "VỀ NHÀ"
-HomeBtn.TextColor3 = Color3.fromRGB(10,10,10)
+HomeBtn.BackgroundColor3 = COL.white
+HomeBtn.Text = L("goHome")
+HomeBtn.TextColor3 = COL.black
 HomeBtn.Font = Enum.Font.GothamBold
 HomeBtn.Parent = PageTP
-Corner(HomeBtn, 10)
+Corner(HomeBtn, 4)
 
 local TPBox = Instance.new("TextBox")
-TPBox.Size = UDim2.new(1, -10, 0, 40)
-TPBox.Position = UDim2.fromOffset(5, 50)
-TPBox.BackgroundColor3 = Color3.fromRGB(32,32,36)
-TPBox.PlaceholderText = "Nhập tên người chơi..."
-TPBox.TextColor3 = Color3.fromRGB(255,255,255)
+TPBox.Size = UDim2.new(1, -10, 0, 38)
+TPBox.Position = UDim2.fromOffset(5, 46)
+TPBox.BackgroundColor3 = COL.card
+TPBox.PlaceholderText = L("tpPlaceholder")
+TPBox.PlaceholderColor3 = COL.textDim
+TPBox.TextColor3 = COL.white
 TPBox.Parent = PageTP
-Corner(TPBox, 10)
+Corner(TPBox, 4); Stroke(TPBox, COL.stroke, 1)
 
 local TPPlayerBtn = Instance.new("TextButton")
-TPPlayerBtn.Size = UDim2.new(1, -10, 0, 40)
-TPPlayerBtn.Position = UDim2.fromOffset(5, 100)
-TPPlayerBtn.BackgroundColor3 = Color3.fromRGB(40,40,45)
-TPPlayerBtn.Text = "BAY ĐẾN NGƯỜI CHƠI"
-TPPlayerBtn.TextColor3 = Color3.fromRGB(200,200,205)
+TPPlayerBtn.Size = UDim2.new(1, -10, 0, 38)
+TPPlayerBtn.Position = UDim2.fromOffset(5, 92)
+TPPlayerBtn.BackgroundColor3 = Color3.fromRGB(36, 36, 42)
+TPPlayerBtn.Text = L("tpBtn")
+TPPlayerBtn.TextColor3 = COL.text
 TPPlayerBtn.Font = Enum.Font.GothamBold
 TPPlayerBtn.Parent = PageTP
-Corner(TPPlayerBtn, 10)
-
-local TPUpBtn = Instance.new("TextButton")
-TPUpBtn.Size = UDim2.new(1, -10, 0, 40)
-TPUpBtn.Position = UDim2.fromOffset(5, 150)
-TPUpBtn.BackgroundColor3 = Color3.fromRGB(40,40,45)
-TPUpBtn.Text = "BAY LÊN TRỜI (+100)"
-TPUpBtn.TextColor3 = Color3.fromRGB(200,200,205)
-TPUpBtn.Font = Enum.Font.GothamBold
-TPUpBtn.Parent = PageTP
-Corner(TPUpBtn, 10)
+Corner(TPPlayerBtn, 4)
 
 SaveBtn.MouseButton1Click:Connect(function()
     if LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") then
         SavedPos = LP.Character.HumanoidRootPart.CFrame
-        SaveBtn.Text = "ĐÃ LƯU!"
-        task.delay(1, function() SaveBtn.Text = "LƯU VỊ TRÍ" end)
+        SaveBtn.Text = "OK!"
+        task.delay(1, function() SaveBtn.Text = L("savePos") end)
     end
 end)
-
 HomeBtn.MouseButton1Click:Connect(function()
-    if SavedPos and LP.Character then
-        LP.Character:PivotTo(SavedPos)
-    end
+    if SavedPos and LP.Character then LP.Character:PivotTo(SavedPos) end
 end)
-
 TPPlayerBtn.MouseButton1Click:Connect(function()
     local name = string.lower(TPBox.Text)
     if name == "" then return end
-    local foundPlayer = nil
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= LP and string.lower(p.Name):find(name) then
-            foundPlayer = p
-            break
-        end
-    end
-    if foundPlayer and foundPlayer.Character and foundPlayer.Character:FindFirstChild("HumanoidRootPart") then
-        if LP.Character then
-            LP.Character:PivotTo(foundPlayer.Character.HumanoidRootPart.CFrame * CFrame.new(0, 3, 3))
-        end
-    else
-        TPBox.Text = "Không tìm thấy!"
-        task.delay(1.5, function() TPBox.Text = ""; TPBox.PlaceholderText = "Nhập tên người chơi..." end)
-    end
-end)
-
-TPUpBtn.MouseButton1Click:Connect(function()
-    if LP.Character then
-        LP.Character:PivotTo(LP.Character.HumanoidRootPart.CFrame + Vector3.new(0,100,0))
-    end
-end)
-
---==================================================
--- 7. TAB BÓNG ĐÁ
---==================================================
-local function FootBtn(txt, y)
-    local b = Instance.new("TextButton")
-    b.Size = UDim2.new(1, -10, 0, 40)
-    b.Position = UDim2.fromOffset(5, y)
-    b.BackgroundColor3 = Color3.fromRGB(42,42,47)
-    b.Text = txt .. " : OFF"
-    b.TextColor3 = Color3.fromRGB(200,200,205)
-    b.Font = Enum.Font.GothamBold
-    b.Parent = PageFoot
-    Corner(b, 10)
-    return b
-end
-local ScHomeBtn = FootBtn("AUTO GHI BÀN NHÀ", 0)
-local ScAwayBtn = FootBtn("AUTO GHI BÀN KHÁCH", 50)
-local GkHomeBtn = FootBtn("AUTO THỦ MÔN NHÀ", 100)
-local GkAwayBtn = FootBtn("AUTO THỦ MÔN KHÁCH", 150)
-
---==================================================
--- 8. TAB CÀI ĐẶT
---==================================================
-local SpinCard = Instance.new("Frame")
-SpinCard.Size = UDim2.new(1, -10, 0, 130)
-SpinCard.Position = UDim2.fromOffset(5, 0)
-SpinCard.BackgroundColor3 = Color3.fromRGB(23,23,27)
-SpinCard.Parent = PageSys
-Corner(SpinCard, 14); Stroke(SpinCard, Color3.fromRGB(50,50,55), 1)
-
-local SpinTitle = Instance.new("TextLabel")
-SpinTitle.Size = UDim2.new(1, -20, 0, 25)
-SpinTitle.Position = UDim2.fromOffset(12, 10)
-SpinTitle.BackgroundTransparency = 1
-SpinTitle.Text = "XOAY NGƯỜI"
-SpinTitle.TextColor3 = Color3.fromRGB(245,245,245)
-SpinTitle.Font = Enum.Font.GothamBold
-SpinTitle.TextXAlignment = Enum.TextXAlignment.Left
-SpinTitle.Parent = SpinCard
-
-local function SpinBtn(txt, x, y, speed)
-    local b = Instance.new("TextButton")
-    b.Size = UDim2.new(0.45, 0, 0, 35)
-    b.Position = UDim2.fromOffset(x, y)
-    b.BackgroundColor3 = Color3.fromRGB(42,42,47)
-    b.Text = txt
-    b.TextColor3 = Color3.fromRGB(200,200,205)
-    b.Font = Enum.Font.GothamBold
-    b.Parent = SpinCard
-    Corner(b, 8)
-    b.MouseButton1Click:Connect(function()
-        for _, c in ipairs(SpinCard:GetChildren()) do
-            if c:IsA("TextButton") then
-                c.BackgroundColor3 = Color3.fromRGB(42,42,47)
-                c.TextColor3 = Color3.fromRGB(200,200,205)
+            if p.Character and p.Character:FindFirstChild("HumanoidRootPart") and LP.Character then
+                LP.Character:PivotTo(p.Character.HumanoidRootPart.CFrame * CFrame.new(0, 3, 3))
             end
+            return
         end
-        b.BackgroundColor3 = Color3.fromRGB(255,195,0)
-        b.TextColor3 = Color3.fromRGB(10,10,10)
-        SpinSpeed = speed
-    end)
-end
-SpinBtn("Xoay chậm", 10, 45, math.rad(120))
-SpinBtn("Bình thường", 215, 45, math.rad(360))
-SpinBtn("Xoay nhanh", 10, 85, math.rad(720))
-SpinBtn("TẮT XOAY", 215, 85, 0)
+    end
+    TPBox.Text = "Not found!"
+end)
+
+--========== TAB BÓNG ĐÁ ===========
+local ScoreInfo = Instance.new("TextLabel")
+ScoreInfo.Size = UDim2.new(1, -20, 0, 20)
+ScoreInfo.Position = UDim2.fromOffset(10, 115)
+ScoreInfo.BackgroundTransparency = 1
+ScoreInfo.Text = "Bóng: ✗ | Lưới địch: ✗"
+ScoreInfo.TextColor3 = COL.textDim
+ScoreInfo.Font = Enum.Font.GothamBold
+ScoreInfo.TextSize = 9
+ScoreInfo.TextXAlignment = Enum.TextXAlignment.Left
+ScoreInfo.Parent = PageFoot
+
+local scoreRefs = {}
+scoreRefs.scoreAway = CreateTick(PageFoot, 0, L("scoreAway"), function(v)
+    FootStates.AutoScoreAway = v
+    if v then
+        FootStates.AutoScoreHome = false
+        if scoreRefs.scoreHome then scoreRefs.scoreHome.Set(false) end
+    end
+end)
+scoreRefs.scoreHome = CreateTick(PageFoot, 38, L("scoreHome"), function(v)
+    FootStates.AutoScoreHome = v
+    if v then
+        FootStates.AutoScoreAway = false
+        if scoreRefs.scoreAway then scoreRefs.scoreAway.Set(false) end
+    end
+end)
+
+local shootRefs = {}
+shootRefs.shootToggle = CreateTick(PageFoot, 76, L("shootToggle"), function(v) FootStates.AutoShoot = v end)
+
+local gkRefs = {}
+gkRefs.gkHome = CreateTick(PageFoot, 126, L("gkHome"), function(v) FootStates.AutoGKHome = v end)
+gkRefs.gkAway = CreateTick(PageFoot, 164, L("gkAway"), function(v) FootStates.AutoGKAway = v end)
+
+--========== TAB CÀI ĐẶT ===========
+local sysRefs = {}
+sysRefs.speedToggle = CreateTick(PageSys, 0, L("speedToggle"), function(v) SpeedOn = v end)
+local speedInput = CreateNumberInput(PageSys, 38, L("speedValue"), 100, 16, 1000, function(n) SpeedValue = n end)
+sysRefs.flyToggle = CreateTick(PageSys, 76, L("flyToggle"), function(v)
+    FlyOn = v
+    if not v and LP.Character then
+        local hrp = LP.Character:FindFirstChild("HumanoidRootPart")
+        local h = LP.Character:FindFirstChildOfClass("Humanoid")
+        if hrp then local bv = hrp:FindFirstChild("BachFlyBV"); if bv then bv:Destroy() end end
+        if h then h.PlatformStand = false end
+    end
+end)
+local flyInput = CreateNumberInput(PageSys, 114, L("flyValue"), 60, 10, 500, function(n) FlySpeedValue = n end)
+sysRefs.spinToggle = CreateTick(PageSys, 152, L("spinToggle"), function(v) SpinSpeed = v and math.rad(360) or 0 end)
+
+local langTitle = Instance.new("TextLabel")
+langTitle.Size = UDim2.new(1, -10, 0, 24)
+langTitle.Position = UDim2.fromOffset(5, 190)
+langTitle.BackgroundTransparency = 1
+langTitle.Text = L("langTitle")
+langTitle.TextColor3 = COL.text
+langTitle.Font = Enum.Font.GothamBold
+langTitle.TextSize = 11
+langTitle.TextXAlignment = Enum.TextXAlignment.Left
+langTitle.Parent = PageSys
+
+local langVI = Instance.new("TextButton")
+langVI.Size = UDim2.new(0.5, -10, 0, 32)
+langVI.Position = UDim2.fromOffset(5, 218)
+langVI.BackgroundColor3 = COL.white
+langVI.Text = L("langVI")
+langVI.TextColor3 = COL.black
+langVI.Font = Enum.Font.GothamBold
+langVI.TextSize = 12
+langVI.Parent = PageSys
+Corner(langVI, 4)
+
+local langEN = Instance.new("TextButton")
+langEN.Size = UDim2.new(0.5, -10, 0, 32)
+langEN.Position = UDim2.new(0.5, 5, 0, 218)
+langEN.BackgroundColor3 = Color3.fromRGB(36, 36, 42)
+langEN.Text = L("langEN")
+langEN.TextColor3 = COL.textDim
+langEN.Font = Enum.Font.GothamBold
+langEN.TextSize = 12
+langEN.Parent = PageSys
+Corner(langEN, 4)
 
 local LogoutBtn = Instance.new("TextButton")
-LogoutBtn.Size = UDim2.new(1, -10, 0, 45)
-LogoutBtn.Position = UDim2.fromOffset(5, 140)
-LogoutBtn.BackgroundColor3 = Color3.fromRGB(200, 40, 40)
-LogoutBtn.Text = "ĐĂNG XUẤT / XÓA KEY"
-LogoutBtn.TextColor3 = Color3.fromRGB(255,255,255)
+LogoutBtn.Size = UDim2.new(1, -10, 0, 40)
+LogoutBtn.Position = UDim2.fromOffset(5, 260)
+LogoutBtn.BackgroundColor3 = Color3.fromRGB(70, 70, 78)
+LogoutBtn.Text = L("logout")
+LogoutBtn.TextColor3 = COL.white
 LogoutBtn.Font = Enum.Font.GothamBold
-LogoutBtn.TextSize = 14
+LogoutBtn.TextSize = 12
 LogoutBtn.Parent = PageSys
-Corner(LogoutBtn, 10)
-
+Corner(LogoutBtn, 4)
 LogoutBtn.MouseButton1Click:Connect(function()
     SaveDB({})
     Main.Visible = false
@@ -805,68 +923,556 @@ LogoutBtn.MouseButton1Click:Connect(function()
     KeyStatus.Text = ""
 end)
 
---==================================================
--- 9. LOGIC CHẠY
---==================================================
-RunService.RenderStepped:Connect(function()
-    if SpeedOn and LP.Character then
-        local h = LP.Character:FindFirstChildOfClass("Humanoid")
-        if h then h.WalkSpeed = 1000 end
-    elseif not SpeedOn and LP.Character then
-        local h = LP.Character:FindFirstChildOfClass("Humanoid")
-        if h and h.WalkSpeed == 1000 then h.WalkSpeed = DEFAULT_SPEED end
+--========== TAB KHÁC ===========
+local miscRefs = {}
+miscRefs.antiAFK = CreateTick(PageMisc, 0, L("antiAFK"), function(v) AntiAFKOn = v end)
+miscRefs.noClip = CreateTick(PageMisc, 38, L("noClip"), function(v)
+    NoClipOn = v
+    if not v and LP.Character then
+        for _, part in ipairs(LP.Character:GetDescendants()) do
+            if part:IsA("BasePart") then part.CanCollide = true end
+        end
     end
+end)
+miscRefs.infiniteJump = CreateTick(PageMisc, 76, L("infiniteJump"), function(v) InfiniteJumpOn = v end)
+miscRefs.chams = CreateTick(PageMisc, 114, L("chams"), function(v)
+    ChamsOn = v
+    if not v then
+        for _, c in ipairs(ChamsCache) do
+            if c and c.Parent then c:Destroy() end
+        end
+        ChamsCache = {}
+    end
+end)
+miscRefs.xray = CreateTick(PageMisc, 152, L("xray"), function(v)
+    XRayOn = v
+    if not v then
+        for _, d in ipairs(workspace:GetDescendants()) do
+            if d:IsA("BasePart") and d.LocalTransparencyModifier ~= 0 then
+                d.LocalTransparencyModifier = 0
+            end
+        end
+    end
+end)
+miscRefs.antiCheat = CreateTick(PageMisc, 190, L("antiCheat"), function(v)
+    AntiCheatBypassOn = true
+    if not v then miscRefs.antiCheat.Set(true) end
+end, true)
 
-    if FlyOn and LP.Character then
+miscRefs.freeze = CreateTick(PageMisc, 228, L("freeze"), function(v)
+    FreezeOn = v
+    if freezeBtn then
+        freezeBtn.BackgroundColor3 = v and Color3.fromRGB(0, 200, 0) or Color3.fromRGB(200, 0, 0)
+        freezeBtn.Visible = v -- CHỈ HIỆN NÚT TRÒN KHI BẬT
+    end
+    if v then
+        PlayBeep()
+    else
+        ResetSelfFreeze()
+    end
+end)
+
+miscRefs.freezeEnemies = CreateTick(PageMisc, 266, L("freezeEnemies"), function(v)
+    FreezeEnemiesOn = v
+    if freezeEnemyBtn then
+        freezeEnemyBtn.BackgroundColor3 = v and Color3.fromRGB(0, 200, 0) or Color3.fromRGB(200, 0, 0)
+        freezeEnemyBtn.Visible = v -- CHỈ HIỆN NÚT TRÒN KHI BẬT
+    end
+    if v then
+        PlayBeep()
+        FreezeAllEnemies()
+    else
+        UnfreezeAllEnemies()
+    end
+end)
+
+--========== ÂM THANH TÍT ===========
+function PlayBeep()
+    pcall(function()
+        local s = Instance.new("Sound")
+        s.SoundId = "rbxassetid://138082736"
+        s.Volume = 1
+        s.Parent = SoundService
+        s:Play()
+        task.delay(1, function() if s then s:Destroy() end end)
+    end)
+end
+
+--========== FREEZE FUNCTIONS ===========
+function ResetSelfFreeze()
+    if LP.Character then
+        local hrp = LP.Character:FindFirstChild("HumanoidRootPart")
+        local h = LP.Character:FindFirstChildOfClass("Humanoid")
+        if hrp then hrp.Anchored = false end
+        if h then
+            h.WalkSpeed = SpeedOn and SpeedValue or DEFAULT_SPEED
+            h.JumpPower = DEFAULT_JUMP
+            h.PlatformStand = false
+        end
+    end
+end
+
+function UnfreezeAllEnemies()
+    for p, data in pairs(FrozenEnemies) do
+        pcall(function()
+            if data.char and data.char.Parent then
+                local hrp = data.char:FindFirstChild("HumanoidRootPart")
+                local h = data.char:FindFirstChildOfClass("Humanoid")
+                if hrp then hrp.Anchored = false end
+                if h then
+                    h.WalkSpeed = data.walkSpeed or DEFAULT_SPEED
+                    h.JumpPower = data.jumpPower or DEFAULT_JUMP
+                    h.PlatformStand = false
+                end
+            end
+        end)
+    end
+    FrozenEnemies = {}
+end
+
+function FreezeAllEnemies()
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= LP and p.Character then
+            local char = p.Character
+            local hrp = char:FindFirstChild("HumanoidRootPart")
+            local h = char:FindFirstChildOfClass("Humanoid")
+            if hrp and h then
+                if not FrozenEnemies[p] then
+                    FrozenEnemies[p] = {
+                        char = char,
+                        walkSpeed = h.WalkSpeed,
+                        jumpPower = h.JumpPower,
+                    }
+                end
+                hrp.Anchored = true
+                h.WalkSpeed = 0
+                h.JumpPower = 0
+            end
+        end
+    end
+end
+
+--========== FREEZE BUTTONS ===========
+local freezeBtn = Instance.new("TextButton")
+freezeBtn.Size = UDim2.fromOffset(70, 70)
+freezeBtn.Position = UDim2.new(0, 20, 1, -100)
+freezeBtn.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
+freezeBtn.Text = L("freezeBtn")
+freezeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+freezeBtn.TextSize = 11
+freezeBtn.Font = Enum.Font.GothamBold
+freezeBtn.Visible = false
+freezeBtn.ZIndex = 300
+freezeBtn.Parent = Gui
+Corner(freezeBtn, 100); Stroke(freezeBtn, COL.white, 2)
+
+local freezeEnemyBtn = Instance.new("TextButton")
+freezeEnemyBtn.Size = UDim2.fromOffset(70, 70)
+freezeEnemyBtn.Position = UDim2.new(0, 100, 1, -100)
+freezeEnemyBtn.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
+freezeEnemyBtn.Text = L("freezeEnemyBtn")
+freezeEnemyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+freezeEnemyBtn.TextSize = 10
+freezeEnemyBtn.Font = Enum.Font.GothamBold
+freezeEnemyBtn.Visible = false
+freezeEnemyBtn.ZIndex = 300
+freezeEnemyBtn.Parent = Gui
+Corner(freezeEnemyBtn, 100); Stroke(freezeEnemyBtn, COL.white, 2)
+
+local function SetupFreezeBtnDrag(btn)
+    local fDrag, fStart, fPos, fMoved = false, nil, nil, false
+    btn.InputBegan:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+            fDrag = true; fMoved = false; fStart = i.Position; fPos = btn.Position
+        end
+    end)
+    UIS.InputChanged:Connect(function(i)
+        if not fDrag then return end
+        if i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch then
+            local d = i.Position - fStart
+            if d.Magnitude > 3 then fMoved = true end
+            btn.Position = UDim2.new(fPos.X.Scale, fPos.X.Offset + d.X, fPos.Y.Scale, fPos.Y.Offset + d.Y)
+        end
+    end)
+    UIS.InputEnded:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+            if fDrag then fDrag = false end
+        end
+    end)
+    btn.MouseButton1Click:Connect(function()
+        if fMoved then fMoved = false; return end
+    end)
+end
+
+SetupFreezeBtnDrag(freezeBtn)
+SetupFreezeBtnDrag(freezeEnemyBtn)
+
+freezeBtn.MouseButton1Click:Connect(function()
+    FreezeOn = not FreezeOn
+    freezeBtn.BackgroundColor3 = FreezeOn and Color3.fromRGB(0, 200, 0) or Color3.fromRGB(200, 0, 0)
+    if FreezeOn then
+        PlayBeep()
+    else
+        ResetSelfFreeze()
+        freezeBtn.Visible = false -- ẨN NÚT KHI TẮT
+    end
+    if miscRefs.freeze then miscRefs.freeze.Set(FreezeOn) end
+end)
+
+freezeEnemyBtn.MouseButton1Click:Connect(function()
+    FreezeEnemiesOn = not FreezeEnemiesOn
+    freezeEnemyBtn.BackgroundColor3 = FreezeEnemiesOn and Color3.fromRGB(0, 200, 0) or Color3.fromRGB(200, 0, 0)
+    if FreezeEnemiesOn then
+        PlayBeep()
+        FreezeAllEnemies()
+    else
+        UnfreezeAllEnemies()
+        freezeEnemyBtn.Visible = false -- ẨN NÚT KHI TẮT
+    end
+    if miscRefs.freezeEnemies then miscRefs.freezeEnemies.Set(FreezeEnemiesOn) end
+end)
+
+--========== UPDATE LANGUAGE ===========
+local function UpdateLanguage()
+    TabESP.Text = L("tabESP"); TabAim.Text = L("tabAim"); TabPerf.Text = L("tabPerf")
+    TabTP.Text = L("tabTP"); TabFoot.Text = L("tabFoot"); TabSys.Text = L("tabSys"); TabMisc.Text = L("tabMisc")
+    espTickRefs.espToggle.SetText(L("espToggle"))
+    espTickRefs.espHL.SetText(L("espHL"))
+    espTickRefs.espLine.SetText(L("espLine"))
+    espTickRefs.espName.SetText(L("espName"))
+    espTickRefs.espHP.SetText(L("espHP"))
+    espTickRefs.espDist.SetText(L("espDist"))
+    espTickRefs.espHitbox.SetText(L("espHitbox"))
+    aimTickRefs.aimToggle.SetText(L("aimToggle"))
+    aimTickRefs.aimFOVShow.SetText(L("aimFOVShow"))
+    aimFOVInput.SetLabel(L("aimFOV"))
+    colorLbl.Text = L("aimFOVColor")
+    fpsTickRefs.fpsToggle.SetText(L("fpsToggle"))
+    fpsInput.SetLabel(L("fpsCustom"))
+    SaveBtn.Text = L("savePos"); HomeBtn.Text = L("goHome")
+    TPBox.PlaceholderText = L("tpPlaceholder"); TPPlayerBtn.Text = L("tpBtn")
+    scoreRefs.scoreAway.SetText(L("scoreAway"))
+    scoreRefs.scoreHome.SetText(L("scoreHome"))
+    shootRefs.shootToggle.SetText(L("shootToggle"))
+    gkRefs.gkHome.SetText(L("gkHome")); gkRefs.gkAway.SetText(L("gkAway"))
+    sysRefs.speedToggle.SetText(L("speedToggle")); speedInput.SetLabel(L("speedValue"))
+    sysRefs.flyToggle.SetText(L("flyToggle")); flyInput.SetLabel(L("flyValue"))
+    sysRefs.spinToggle.SetText(L("spinToggle"))
+    langTitle.Text = L("langTitle"); langVI.Text = L("langVI"); langEN.Text = L("langEN")
+    if miscRefs then
+        miscRefs.antiAFK.SetText(L("antiAFK"))
+        miscRefs.noClip.SetText(L("noClip"))
+        miscRefs.infiniteJump.SetText(L("infiniteJump"))
+        miscRefs.chams.SetText(L("chams"))
+        miscRefs.xray.SetText(L("xray"))
+        miscRefs.antiCheat.SetText(L("antiCheat"))
+        miscRefs.freeze.SetText(L("freeze"))
+        miscRefs.freezeEnemies.SetText(L("freezeEnemies"))
+    end
+    LogoutBtn.Text = L("logout")
+    if freezeBtn then freezeBtn.Text = L("freezeBtn") end
+    if freezeEnemyBtn then freezeEnemyBtn.Text = L("freezeEnemyBtn") end
+end
+
+langVI.MouseButton1Click:Connect(function()
+    LANG = "vi"
+    langVI.BackgroundColor3 = COL.white; langVI.TextColor3 = COL.black
+    langEN.BackgroundColor3 = Color3.fromRGB(36, 36, 42); langEN.TextColor3 = COL.textDim
+    UpdateLanguage()
+end)
+langEN.MouseButton1Click:Connect(function()
+    LANG = "en"
+    langEN.BackgroundColor3 = COL.white; langEN.TextColor3 = COL.black
+    langVI.BackgroundColor3 = Color3.fromRGB(36, 36, 42); langVI.TextColor3 = COL.textDim
+    UpdateLanguage()
+end)
+
+--========== LOGIC CHÍNH ===========
+LP.Idled:Connect(function()
+    if AntiAFKOn then
+        pcall(function() game:GetService("VirtualUser"):Button2Down(Vector2.new(0,0)) end)
+        task.wait(0.1)
+        pcall(function() game:GetService("VirtualUser"):Button2Up(Vector2.new(0,0)) end)
+    end
+end)
+
+UIS.JumpRequest:Connect(function()
+    if InfiniteJumpOn and LP.Character then
+        local h = LP.Character:FindFirstChildOfClass("Humanoid")
+        if h then h:ChangeState(Enum.HumanoidStateType.Jumping) end
+    end
+end)
+
+-- Anti-Cheat Bypass luôn chạy
+task.spawn(function()
+    while true do
+        task.wait(1)
+        if AntiCheatBypassOn then
+            pcall(function()
+                if LP.Character then
+                    local h = LP.Character:FindFirstChildOfClass("Humanoid")
+                    if h and h.Health > 0 then
+                        h:SetStateEnabled(Enum.HumanoidStateType.Dead, true)
+                    end
+                end
+            end)
+        end
+    end
+end)
+
+RunService.Heartbeat:Connect(function(dt)
+    -- No Clip
+    if NoClipOn and LP.Character then
+        for _, part in ipairs(LP.Character:GetDescendants()) do
+            if part:IsA("BasePart") then part.CanCollide = false end
+        end
+    end
+    -- Freeze Self
+    if LP.Character then
         local hrp = LP.Character:FindFirstChild("HumanoidRootPart")
         local h = LP.Character:FindFirstChildOfClass("Humanoid")
         if hrp and h then
-            h.PlatformStand = true
-            local bv = hrp:FindFirstChild("BachFlyBV") or Instance.new("BodyVelocity", hrp)
-            bv.Name = "BachFlyBV"; bv.MaxForce = Vector3.new(1e9, 1e9, 1e9)
-            local dir = Vector3.zero
-            if UIS:IsKeyDown(Enum.KeyCode.W) then dir = dir + Cam.CFrame.LookVector end
-            if UIS:IsKeyDown(Enum.KeyCode.S) then dir = dir - Cam.CFrame.LookVector end
-            if UIS:IsKeyDown(Enum.KeyCode.A) then dir = dir - Cam.CFrame.RightVector end
-            if UIS:IsKeyDown(Enum.KeyCode.D) then dir = dir + Cam.CFrame.RightVector end
-            if UIS:IsKeyDown(Enum.KeyCode.Space) then dir = dir + Vector3.new(0,1,0) end
-            if UIS:IsKeyDown(Enum.KeyCode.LeftControl) then dir = dir - Vector3.new(0,1,0) end
-            bv.Velocity = dir.Magnitude > 0 and (dir.Unit * 60) or Vector3.zero
+            if FreezeOn then
+                if not hrp.Anchored then hrp.Anchored = true end
+                if h.WalkSpeed ~= 0 then h.WalkSpeed = 0 end
+                if h.JumpPower ~= 0 then h.JumpPower = 0 end
+            else
+                if hrp.Anchored and not FlyOn and not FrozenEnemies[LP] then
+                    hrp.Anchored = false
+                end
+                if h.WalkSpeed == 0 and not SpeedOn then
+                    h.WalkSpeed = DEFAULT_SPEED
+                elseif SpeedOn and h.WalkSpeed ~= SpeedValue then
+                    h.WalkSpeed = SpeedValue
+                end
+                if h.JumpPower == 0 then
+                    h.JumpPower = DEFAULT_JUMP
+                end
+            end
         end
     end
-
-    if SpinSpeed > 0 and LP.Character then
-        local hrp = LP.Character:FindFirstChild("HumanoidRootPart")
-        if hrp then
-            flyAngle = flyAngle + SpinSpeed * (1/60)
-            if flyAngle > math.pi * 2 then flyAngle = flyAngle - math.pi * 2 end
-            local newLook = Vector3.new(math.cos(flyAngle), 0, math.sin(flyAngle))
-            hrp.CFrame = CFrame.new(hrp.Position, hrp.Position + newLook)
+    -- Freeze Enemies
+    if FreezeEnemiesOn then
+        FreezeAllEnemies()
+    end
+    -- X-Ray
+    if XRayOn then
+        for _, d in ipairs(workspace:GetDescendants()) do
+            if d:IsA("BasePart") and d.Name ~= "BachHitbox" then
+                d.LocalTransparencyModifier = 0.5
+            end
         end
     end
+    -- Chams
+    if ChamsOn then
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= LP and p.Character then
+                local char = p.Character
+                if not char:FindFirstChild("BachChams") then
+                    local hl = Instance.new("Highlight")
+                    hl.Name = "BachChams"
+                    hl.Adornee = char
+                    hl.FillColor = ChamsColor
+                    hl.OutlineColor = ChamsColor
+                    hl.FillTransparency = 0.3
+                    hl.Parent = char
+                    table.insert(ChamsCache, hl)
+                end
+            end
+        end
+    end
+end)
 
+--========== LOGIC BÓNG ĐÁ ===========
+local BallCache = nil
+local GoalNetCache = {Home = nil, Away = nil}
+local lastBallScan = 0
+local scanInterval = 0.5
+
+local function FindBall()
+    if BallCache and BallCache.Parent then return BallCache end
+    BallCache = nil
+    local kws = {"ball", "soccer", "football", "bóng", "bong"}
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj:IsA("BasePart") then
+            local lower = obj.Name:lower()
+            for _, kw in ipairs(kws) do
+                if lower:find(kw) then BallCache = obj; return obj end
+            end
+        end
+    end
+    return nil
+end
+
+local function FindGoalNet(side)
+    if GoalNetCache[side] and GoalNetCache[side].Parent then return GoalNetCache[side] end
+    GoalNetCache[side] = nil
+    local kws
+    if side == "Away" then
+        kws = {"goalaway","netaway","enemynet","goalred","netred"}
+    else
+        kws = {"goalhome","nethome","allynet","goalblue","netblue"}
+    end
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj:IsA("BasePart") then
+            local lower = obj.Name:lower()
+            for _, kw in ipairs(kws) do
+                if lower:find(kw) then GoalNetCache[side] = obj; return obj end
+            end
+        end
+    end
+    return nil
+end
+
+local function ScoreGoalTo(side)
+    local ball = FindBall(); if not ball then return false end
+    local net = FindGoalNet(side); if not net then return false end
+    pcall(function() ball.CFrame = net.CFrame; ball.Velocity = Vector3.zero end)
+    return true
+end
+
+local function ShootBallTo(side)
+    local ball = FindBall(); if not ball then return false end
+    local net = FindGoalNet(side); if not net then return false end
+    pcall(function()
+        local bv = ball:FindFirstChild("BachShootBV") or Instance.new("BodyVelocity")
+        bv.Name = "BachShootBV"
+        bv.MaxForce = Vector3.new(1e9, 1e9, 1e9)
+        bv.Velocity = (net.Position - ball.Position).Unit * 400 + Vector3.new(0, 80, 0)
+        bv.Parent = ball
+        task.delay(0.4, function() if bv and bv.Parent then bv:Destroy() end end)
+    end)
+    return true
+end
+
+local function GKFollow(side)
+    local ball = FindBall(); if not ball then return end
+    local net = FindGoalNet(side); if not net then return end
+    local char = LP.Character
+    if not char then return end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+    local dir = (ball.Position - net.Position).Unit
+    local targetPos = net.Position + dir * 5
+    hrp.CFrame = CFrame.new(targetPos, ball.Position)
+end
+
+local lastScoreTime, lastShootTime = 0, 0
+
+RunService.Heartbeat:Connect(function(dt)
+    local now = tick()
+    if now - lastBallScan >= scanInterval then
+        lastBallScan = now
+        FindBall()
+        if FootStates.AutoScoreAway or FootStates.AutoShoot then FindGoalNet("Away") end
+        if FootStates.AutoScoreHome then FindGoalNet("Home") end
+        local ball = BallCache and BallCache.Parent and "✓" or "✗"
+        local away = GoalNetCache.Away and GoalNetCache.Away.Parent and "✓" or "✗"
+        ScoreInfo.Text = "Bóng: " .. ball .. " | Lưới địch: " .. away
+    end
+    if FootStates.AutoScoreAway and now - lastScoreTime >= 0.5 then
+        lastScoreTime = now
+        pcall(function() ScoreGoalTo("Away") end)
+    end
+    if FootStates.AutoScoreHome and now - lastScoreTime >= 0.5 then
+        lastScoreTime = now
+        pcall(function() ScoreGoalTo("Home") end)
+    end
+    if FootStates.AutoShoot and now - lastShootTime >= 0.3 then
+        lastShootTime = now
+        pcall(function() ShootBallTo("Away") end)
+    end
+    if FootStates.AutoGKHome then pcall(function() GKFollow("Home") end) end
+    if FootStates.AutoGKAway then pcall(function() GKFollow("Away") end) end
+end)
+
+--========== ESP ===========
+local lastESPUpdate, lastTextUpdate = 0, 0
+
+local function CleanupESPForPlayer(p)
+    local cache = ESPCache[p]
+    if not cache then return end
+    if cache.HL then cache.HL:Destroy() end
+    if cache.Beam then cache.Beam:Destroy() end
+    if cache.TopAtt then cache.TopAtt:Destroy() end
+    if cache.Att then cache.Att:Destroy() end
+    if cache.BB then cache.BB:Destroy() end
+    if cache.Hitbox then cache.Hitbox:Destroy() end
+    ESPCache[p] = nil
+end
+
+local function UpdateESP()
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= LP and p.Character then
             local char = p.Character
             local head = char:FindFirstChild("Head")
             local hrp = char:FindFirstChild("HumanoidRootPart")
+            if not head or not hrp then continue end
+            local cache = ESPCache[p]
+            if not cache then cache = {}; ESPCache[p] = cache end
 
-            if ESP.Player and ESP.HL and char then
-                if not char:FindFirstChild("BachESP_HL") then
+            if ESP.HL then
+                if not cache.HL then
                     local hl = Instance.new("Highlight")
                     hl.Name = "BachESP_HL"
                     hl.Adornee = char
-                    hl.FillColor = Color3.fromRGB(255,60,60)
+                    hl.FillColor = Color3.fromRGB(255,255,255)
+                    hl.OutlineColor = Color3.fromRGB(0,0,0)
+                    hl.FillTransparency = 0.5
                     hl.Parent = char
+                    cache.HL = hl
                 end
             else
-                if char:FindFirstChild("BachESP_HL") then char.BachESP_HL:Destroy() end
+                if cache.HL then cache.HL:Destroy(); cache.HL = nil end
             end
 
-            if ESP.Player and (ESP.Name or ESP.HP or ESP.Dist or ESP.Line) and head then
-                if not head:FindFirstChild("BachESP_Line") then
+            if ESP.Hitbox then
+                if not cache.Hitbox then
+                    local hb = Instance.new("Part")
+                    hb.Name = "BachHitbox"
+                    hb.Size = Vector3.new(4, 6, 2)
+                    hb.Transparency = 0.7
+                    hb.Color = Color3.fromRGB(255,255,255)
+                    hb.Material = Enum.Material.Neon
+                    hb.CanCollide = false
+                    hb.Anchored = true
+                    hb.Parent = workspace
+                    cache.Hitbox = hb
+                end
+                cache.Hitbox.CFrame = hrp.CFrame
+            else
+                if cache.Hitbox then cache.Hitbox:Destroy(); cache.Hitbox = nil end
+            end
+
+            if ESP.Line then
+                if not cache.Beam then
+                    local att = Instance.new("Attachment"); att.Name = "BachLineAtt"; att.Parent = head
+                    local topAtt = Instance.new("Attachment"); topAtt.Name = "BachLineTop"; topAtt.Parent = hrp
+                    topAtt.Position = Vector3.new(0, 500, 0)
+                    local beam = Instance.new("Beam")
+                    beam.Name = "BachBlackLine"
+                    beam.Color = ColorSequence.new(Color3.fromRGB(0,0,0))
+                    beam.Width0 = 0.3; beam.Width1 = 0.3
+                    beam.FaceCamera = true
+                    beam.LightEmission = 0
+                    beam.Segments = 1
+                    beam.Transparency = NumberSequence.new(0.2)
+                    beam.Attachment0 = att
+                    beam.Attachment1 = topAtt
+                    beam.Parent = hrp
+                    cache.Beam = beam; cache.TopAtt = topAtt; cache.Att = att
+                end
+            else
+                if cache.Beam then cache.Beam:Destroy(); cache.Beam = nil end
+                if cache.TopAtt then cache.TopAtt:Destroy(); cache.TopAtt = nil end
+                if cache.Att then cache.Att:Destroy(); cache.Att = nil end
+            end
+
+            local needText = ESP.Name or ESP.HP or ESP.Dist
+            if needText then
+                if not cache.BB then
                     local bb = Instance.new("BillboardGui")
-                    bb.Name = "BachESP_Line"
+                    bb.Name = "BachESP_BB"
                     bb.Size = UDim2.new(0, 200, 0, 50)
                     bb.AlwaysOnTop = true
                     bb.StudsOffset = Vector3.new(0, 3, 0)
@@ -876,48 +1482,127 @@ RunService.RenderStepped:Connect(function()
                     txt.Name = "BachESP_Txt"
                     txt.Size = UDim2.new(1, 0, 1, 0)
                     txt.BackgroundTransparency = 1
-                    txt.TextColor3 = Color3.fromRGB(255,60,60)
+                    txt.TextColor3 = Color3.fromRGB(255,255,255)
+                    txt.TextStrokeTransparency = 0
+                    txt.TextStrokeColor3 = Color3.fromRGB(0,0,0)
+                    txt.TextSize = 14
                     txt.Font = Enum.Font.GothamBold
+                    txt.Text = ""
                     txt.Parent = bb
-                end
-                local bb = head:FindFirstChild("BachESP_Line")
-                local txt = bb and bb:FindFirstChild("BachESP_Txt")
-                if txt then
-                    local s = ""
-                    if ESP.Name then s = s .. p.Name .. "\n" end
-                    if ESP.HP then
-                        local hum = char:FindFirstChildOfClass("Humanoid")
-                        if hum then s = s .. "HP: " .. math.floor(hum.Health) .. "\n" end
-                    end
-                    if ESP.Dist and hrp then s = s .. "KC: " .. math.floor((Cam.CFrame.Position - hrp.Position).Magnitude) .. "m" end
-                    txt.Text = s
+                    cache.BB = bb; cache.Txt = txt
                 end
             else
-                if head and head:FindFirstChild("BachESP_Line") then head.BachESP_Line:Destroy() end
+                if cache.BB then cache.BB:Destroy(); cache.BB = nil; cache.Txt = nil end
             end
         end
     end
+end
 
-    if AimOn and LP.Character then
-        local closest, dist = nil, math.huge
-        for _, p in ipairs(Players:GetPlayers()) do
-            if p ~= LP and p.Character and p.Character:FindFirstChild("Head") then
-                local pos, onScreen = Cam:WorldToViewportPoint(p.Character.Head.Position)
-                if onScreen then
-                    local m = (Vector2.new(pos.X, pos.Y) - Vector2.new(Cam.ViewportSize.X/2, Cam.ViewportSize.Y/2)).Magnitude
-                    if m < dist then dist = m; closest = p end
+local function UpdateESPText()
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= LP and p.Character then
+            local cache = ESPCache[p]
+            if cache and cache.Txt and cache.BB then
+                local char = p.Character
+                local hrp = char:FindFirstChild("HumanoidRootPart")
+                local s = ""
+                if ESP.Name then s = s .. p.Name .. "\n" end
+                if ESP.HP then
+                    local hum = char:FindFirstChildOfClass("Humanoid")
+                    if hum then s = s .. "HP: " .. math.floor(hum.Health) .. "\n" end
                 end
+                if ESP.Dist and hrp then
+                    s = s .. "KC: " .. math.floor((Cam.CFrame.Position - hrp.Position).Magnitude) .. "m"
+                end
+                cache.Txt.Text = s
             end
         end
-        if closest and closest.Character and closest.Character:FindFirstChild("Head") then
-            Cam.CFrame = CFrame.new(Cam.CFrame.Position, closest.Character.Head.Position)
+    end
+end
+
+Players.PlayerRemoving:Connect(function(p)
+    if ESPCache[p] then CleanupESPForPlayer(p) end
+    if FrozenEnemies[p] then FrozenEnemies[p] = nil end
+end)
+
+--========== SPEED / FLY / AIM ===========
+RunService.Heartbeat:Connect(function(dt)
+    if LP.Character then
+        local h = LP.Character:FindFirstChildOfClass("Humanoid")
+        if h then
+            if SpeedOn then
+                if h.WalkSpeed ~= SpeedValue then h.WalkSpeed = SpeedValue end
+            else
+                if h.WalkSpeed == SpeedValue or h.WalkSpeed == 1000 then h.WalkSpeed = DEFAULT_SPEED end
+            end
         end
+    end
+    if FlyOn and LP.Character then
+        local hrp = LP.Character:FindFirstChild("HumanoidRootPart")
+        local h = LP.Character:FindFirstChildOfClass("Humanoid")
+        if hrp and h then
+            if not h.PlatformStand then h.PlatformStand = true end
+            local bv = hrp:FindFirstChild("BachFlyBV")
+            if not bv then
+                bv = Instance.new("BodyVelocity")
+                bv.Name = "BachFlyBV"
+                bv.MaxForce = Vector3.new(1e9, 1e9, 1e9)
+                bv.Parent = hrp
+            end
+            local dir = Vector3.zero
+            if UIS:IsKeyDown(Enum.KeyCode.W) then dir = dir + Cam.CFrame.LookVector end
+            if UIS:IsKeyDown(Enum.KeyCode.S) then dir = dir - Cam.CFrame.LookVector end
+            if UIS:IsKeyDown(Enum.KeyCode.A) then dir = dir - Cam.CFrame.RightVector end
+            if UIS:IsKeyDown(Enum.KeyCode.D) then dir = dir + Cam.CFrame.RightVector end
+            if UIS:IsKeyDown(Enum.KeyCode.Space) then dir = dir + Vector3.new(0,1,0) end
+            if UIS:IsKeyDown(Enum.KeyCode.LeftControl) then dir = dir - Vector3.new(0,1,0) end
+            bv.Velocity = dir.Magnitude > 0 and (dir.Unit * FlySpeedValue) or Vector3.zero
+        end
+    end
+    if SpinSpeed > 0 and LP.Character then
+        local hrp = LP.Character:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            flyAngle = flyAngle + SpinSpeed * dt
+            if flyAngle > math.pi * 2 then flyAngle = flyAngle - math.pi * 2 end
+            local newLook = Vector3.new(math.cos(flyAngle), 0, math.sin(flyAngle))
+            hrp.CFrame = CFrame.new(hrp.Position, hrp.Position + newLook)
+        end
+    end
+    lastESPUpdate = lastESPUpdate + dt
+    if lastESPUpdate >= 0.1 then
+        lastESPUpdate = 0
+        if ESP.Player then UpdateESP() end
+    end
+    lastTextUpdate = lastTextUpdate + dt
+    if lastTextUpdate >= 0.3 then
+        lastTextUpdate = 0
+        if ESP.Player then UpdateESPText() end
     end
 end)
 
---==================================================
--- 10. KEY CHECK (API NGHIÊM NGẶT TỪ WEB)
---==================================================
+RunService.RenderStepped:Connect(function()
+    if not AimOn or not LP.Character then return end
+    local closest, dist = nil, math.huge
+    local center = Vector2.new(Cam.ViewportSize.X/2, Cam.ViewportSize.Y/2)
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= LP and p.Character then
+            local head = p.Character:FindFirstChild("Head")
+            if head then
+                local pos, onScreen = Cam:WorldToViewportPoint(head.Position)
+                if onScreen then
+                    local screenPos = Vector2.new(pos.X, pos.Y)
+                    local m = (screenPos - center).Magnitude
+                    if m < dist and m <= AimFOV/2 then dist = m; closest = head end
+                end
+            end
+        end
+    end
+    if closest then
+        Cam.CFrame = CFrame.new(Cam.CFrame.Position, closest.Position)
+    end
+end)
+
+--========== KEY CHECK ===========
 CheckBtn.MouseButton1Click:Connect(function()
     local key = string.gsub(KeyBox.Text, "^%s*(.-)%s*$", "%1")
     if key == "" then
@@ -925,57 +1610,51 @@ CheckBtn.MouseButton1Click:Connect(function()
         KeyStatus.Text = "Vui lòng nhập Key!"
         return
     end
-
-    -- Trạng thái chờ
-    KeyStatus.TextColor3 = Color3.fromRGB(255,200,0)
+    KeyStatus.TextColor3 = COL.white
     KeyStatus.Text = "Đang kiểm tra Key..."
     CheckBtn.Text = "ĐANG CHECK..."
-    CheckBtn.BackgroundColor3 = Color3.fromRGB(150, 100, 0)
-    
-    -- Gọi API kiểm tra Key (Ví dụ API của bạn)
-    local isSuccess, result = pcall(function()
-        -- ĐÂY LÀ API KIỂM TRA. BẠN CẦN THAY ĐỔI URL NÀY BẰNG WEB CỦA BẠN
-        -- Nếu bạn đã có API, hãy dùng Http:GetAsync
-        -- Ở đây, tôi sẽ giả lập API đọc từ một Pastebin (Hoặc dùng logic chặt chẽ hơn)
-        
-        -- Kiểm tra xem Key có đúng cấu trúc BACH-VIP-XXXX-XXXX không
-        local match = string.match(key, "^BACH%-VIP%-%w+%-%w+$")
-        if not match then return "INVALID_FORMAT" end
-        
-        -- Trả về thành công (Giả lập API)
-        return "VALID"
-    end)
-
-    task.wait(1.5) -- Chờ 1.5 giây cho giống thật
-    
-    -- Reset nút
+    CheckBtn.BackgroundColor3 = Color3.fromRGB(120,120,130)
+    local match = string.match(key, "^BACH%-(%u+)%-(%w+)%-(%w+)$")
+    local isValid = false
+    local keyType = nil
+    if match then
+        keyType = match
+        local validTypes = {["1H"]=true, ["24H"]=true, ["1M"]=true, ["VIP"]=true}
+        if validTypes[keyType] then isValid = true end
+    end
+    task.wait(1.2)
     CheckBtn.Text = "CHECK KEY"
-    CheckBtn.BackgroundColor3 = Color3.fromRGB(255, 190, 0)
-
-    if isSuccess and result == "VALID" then
-        KeyStatus.TextColor3 = Color3.fromRGB(100,255,100)
-        KeyStatus.Text = "Key hợp lệ! Đang tải..."
-        
-        task.wait(1)
-        KeyFrame.Visible = false
-        LoadFrame.Visible = true
-        
-        task.spawn(function()
-            for i = 1, 100 do
-                Bar.Size = UDim2.new(i/100, 0, 1, 0)
-                Percent.Text = i .. "%"
-                task.wait(0.01)
+    CheckBtn.BackgroundColor3 = COL.white
+    if isValid then
+        local db = LoadDB()
+        if db[key] then
+            if db[key].hwid == HWID then
+                KeyStatus.TextColor3 = Color3.fromRGB(100,255,100)
+                KeyStatus.Text = "Key hợp lệ! Đang tải..."
+                task.wait(0.8)
+                KeyFrame.Visible = false
+                Main.Visible = true
+                OpenBtn.Visible = true
+                SetTab(TabESP)
+            else
+                KeyStatus.TextColor3 = Color3.fromRGB(255,80,80)
+                KeyStatus.Text = "Key này đã được dùng trên thiết bị khác!"
             end
-            task.wait(0.2)
-            LoadFrame.Visible = false
+        else
+            db[key] = {hwid = HWID, type = keyType, time = tick()}
+            SaveDB(db)
+            KeyStatus.TextColor3 = Color3.fromRGB(100,255,100)
+            KeyStatus.Text = "Key hợp lệ! Đã đăng ký thiết bị.\nĐang tải..."
+            task.wait(0.8)
+            KeyFrame.Visible = false
             Main.Visible = true
             OpenBtn.Visible = true
             SetTab(TabESP)
-        end)
+        end
     else
         KeyStatus.TextColor3 = Color3.fromRGB(255,80,80)
-        KeyStatus.Text = "Key sai hoặc không tồn tại! (Phải đúng 100%)"
+        KeyStatus.Text = "Key không hợp lệ! Phải đúng format:\nBACH-1H-XXXXXX-XXXXXX\nBACH-24H-XXXXXX-XXXXXX\nBACH-1M-XXXXXX-XXXXXX\nBACH-VIP-XXXXXX-XXXXXX"
     end
 end)
 
-print("[BACH V11] Đã load - Chế độ bảo mật Key Nghiêm Ngặt!")
+print("[BACH V16] Đã load - FIX LỖI HIỆN NÚT FREEZE + HOÀN HẢO!")
